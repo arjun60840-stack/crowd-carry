@@ -1,0 +1,286 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  avatar            String?
+  role              String    @default("USER") // USER, TRAVELER, ADMIN
+  isVerified        Boolean   @default(false)
+  isEmailVerified   Boolean   @default(false)
+  isPhoneVerified   Boolean   @default(false)
+  idDocumentUrl     String?
+  bio               String?
+  city              String?
+  country           String?
+  
+  // Trust & Reputation
+  trustScore        Float     @default(0)
+  rating            Float     @default(0)
+  totalRatings      Int       @default(0)
+  completedDeliveries Int     @default(0)
+  totalTrips        Int       @default(0)
+  successRate       Float     @default(0)
+  
+  // Badges
+  isTrustedTraveler Boolean   @default(false)
+  isVerifiedBadge   Boolean   @default(false)
+  isTopCarrier      Boolean   @default(false)
+  
+  // Risk
+  riskScore         Float     @default(0)
+  riskLevel         String    @default("LOW") // LOW, MEDIUM, HIGH
+  
+  // Reset Password
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+  emailVerifyToken    String?
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  lastLoginAt       DateTime?
+  
+  // Relations
+  trips             Trip[]
+  packages          Package[]
+  matchesAsTraveler Match[]   @relation("TravelerMatches")
+  matchesAsSender   Match[]   @relation("SenderMatches")
+  reviewsGiven      Review[]  @relation("ReviewsGiven")
+  reviewsReceived   Review[]  @relation("ReviewsReceived")
+  notifications     Notification[]
+  reportsFiledBy    Report[]  @relation("ReportsFiledBy")
+  reportsAgainst    Report[]  @relation("ReportsAgainst")
+  transactions      Transaction[]
+  
+  @@map("users")
+}
+
+model Trip {
+  id                String      @id @default(uuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  sourceCity        String
+  sourceCountry     String?
+  sourceLat         Float?
+  sourceLng         Float?
+  destinationCity   String
+  destinationCountry String?
+  destinationLat    Float?
+  destinationLng    Float?
+  
+  travelDate        DateTime
+  travelTime        String?
+  vehicleType       String      @default("CAR")
+  availableCapacity Float       // in liters or cubic cm
+  availableWeight   Float       // in kg
+  pricePerKg        Float?
+  
+  notes             String?
+  isActive          Boolean     @default(true)
+  isCompleted       Boolean     @default(false)
+  
+  // Route data
+  routeDistance     Float?      // km
+  estimatedDuration Int?        // minutes
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relations
+  matches           Match[]
+  
+  @@map("trips")
+}
+
+model Package {
+  id                String          @id @default(uuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title             String
+  description       String?
+  
+  pickupAddress     String
+  pickupCity        String
+  pickupCountry     String?
+  pickupLat         Float?
+  pickupLng         Float?
+  
+  destinationAddress  String
+  destinationCity     String
+  destinationCountry  String?
+  destinationLat      Float?
+  destinationLng      Float?
+  
+  weight            Float           // kg
+  size              String          @default("MEDIUM")
+  category          String          @default("OTHER")
+  urgency           String          @default("STANDARD")
+  
+  rewardAmount      Float
+  suggestedMin      Float?
+  suggestedRecommended Float?
+  suggestedPremium  Float?
+  
+  status            String          @default("PENDING")
+  imageUrls         String          @default("[]") // JSON stringified array
+  
+  // Insurance
+  estimatedValue    Float?
+  isInsured         Boolean         @default(false)
+  
+  // Delivery details
+  deliveredAt       DateTime?
+  pickedUpAt        DateTime?
+  
+  // Risk
+  riskScore         Float           @default(0)
+  riskLevel         String          @default("LOW")
+  
+  // CO2 calculations
+  co2Saved          Float?
+  distanceSaved     Float?
+  moneySaved        Float?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // Relations
+  matches           Match[]
+  reviews           Review[]
+  transactions      Transaction[]
+  
+  @@map("packages")
+}
+
+model Match {
+  id                String        @id @default(uuid())
+  packageId         String
+  package           Package       @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  tripId            String
+  trip              Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  travelerId        String
+  traveler          User          @relation("TravelerMatches", fields: [travelerId], references: [id])
+  senderId          String
+  sender            User          @relation("SenderMatches", fields: [senderId], references: [id])
+  
+  // Match scores
+  matchScore        Float         // 0-100
+  routeScore        Float
+  dateScore         Float
+  weightScore       Float
+  ratingScore       Float
+  successRateScore  Float
+  
+  // Match quality label
+  matchQuality      String        // "Excellent", "Good", "Average"
+  explanation       String?
+  
+  isAccepted        Boolean       @default(false)
+  isRejected        Boolean       @default(false)
+  acceptedAt        DateTime?
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@unique([packageId, tripId])
+  @@map("matches")
+}
+
+model Review {
+  id                String    @id @default(uuid())
+  reviewerId        String
+  reviewer          User      @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  revieweeId        String
+  reviewee          User      @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+  packageId         String?
+  package           Package?  @relation(fields: [packageId], references: [id])
+  
+  rating            Int       // 1-5
+  comment           String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@map("reviews")
+}
+
+model Notification {
+  id                String            @id @default(uuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type              String
+  title             String
+  message           String
+  data              String?           // JSON stringified object
+  isRead            Boolean           @default(false)
+  
+  createdAt         DateTime          @default(now())
+  
+  @@map("notifications")
+}
+
+model Report {
+  id                String        @id @default(uuid())
+  reporterId        String
+  reporter          User          @relation("ReportsFiledBy", fields: [reporterId], references: [id])
+  reportedUserId    String
+  reportedUser      User          @relation("ReportsAgainst", fields: [reportedUserId], references: [id])
+  
+  reason            String
+  description       String
+  evidenceUrls      String        @default("[]") // JSON stringified array
+  status            String        @default("PENDING")
+  adminNotes        String?
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@map("reports")
+}
+
+model Transaction {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id])
+  packageId         String?
+  package           Package?  @relation(fields: [packageId], references: [id])
+  
+  type              String    // "payment", "reward", "refund"
+  amount            Float
+  currency          String    @default("USD")
+  status            String    @default("pending") // pending, completed, failed
+  description       String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@map("transactions")
+}
+
+model SustainabilityStats {
+  id                String    @id @default(uuid())
+  totalCO2Saved     Float     @default(0)
+  totalDeliveries   Int       @default(0)
+  totalMoneySaved   Float     @default(0)
+  totalDistanceSaved Float    @default(0)
+  updatedAt         DateTime  @updatedAt
+  
+  @@map("sustainability_stats")
+}
