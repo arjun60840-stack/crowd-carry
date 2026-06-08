@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import HelpChatbot from "@/components/HelpChatbot";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", weight: ["400", "500", "600", "700"] });
 
@@ -27,6 +28,7 @@ export default function RootLayout({
         <AuthProvider>
           {children}
         </AuthProvider>
+        <HelpChatbot />
       </body>
     </html>
   );
