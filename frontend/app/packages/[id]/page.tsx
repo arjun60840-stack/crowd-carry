@@ -249,11 +249,44 @@ export default function PackageDetailPage() {
                       <div className="mt-2 text-xs text-gray-500">{match.explanation}</div>
                     )}
 
-                    {match.isAccepted && (
-                      <div className="mt-2 flex items-center gap-1 text-xs text-emerald-400">
-                        <CheckCircle className="w-3 h-3" /> Accepted
-                      </div>
-                    )}
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      {match.isAccepted ? (
+                        <div className="flex items-center gap-1 text-sm text-emerald-400 font-medium">
+                          <CheckCircle className="w-4 h-4" /> Match Accepted!
+                        </div>
+                      ) : match.isRejected ? (
+                        <div className="flex items-center gap-1 text-sm text-gray-500 font-medium">
+                          <AlertTriangle className="w-4 h-4" /> Match Rejected
+                        </div>
+                      ) : (
+                        isOwner && (
+                          <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await api.acceptMatch(match.id);
+                                  const updated = await api.getPackage(id);
+                                  setPkg(updated.data);
+                                  setMatches(updated.data.matches || []);
+                                } catch (err) {
+                                  console.error(err);
+                                }
+                              }}
+                              className="btn-primary text-xs px-3 py-1.5 flex-1 sm:flex-none"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" /> Accept Carrier
+                            </button>
+                          </div>
+                        )
+                      )}
+
+                      <Link 
+                        href={`/trips/${match.tripId}`} 
+                        className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors ml-auto"
+                      >
+                        View Trip Details <ChevronRight className="w-3 h-3" />
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
