@@ -146,6 +146,7 @@ model Package {
   isInsured         Boolean         @default(false)
   
   // Delivery details
+  deliveryPin       String?
   deliveredAt       DateTime?
   pickedUpAt        DateTime?
   

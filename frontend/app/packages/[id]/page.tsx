@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { 
   Package, MapPin, Weight, DollarSign, Clock, Loader2, 
   Zap, Star, Shield, ArrowLeft, CheckCircle, AlertTriangle,
-  ChevronRight, Leaf
+  ChevronRight, Leaf, Eye, EyeOff, Lock
 } from 'lucide-react';
 import api, { Package as Pkg, Match } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -34,6 +34,12 @@ export default function PackageDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFindingMatches, setIsFindingMatches] = useState(false);
   const [matchMessage, setMatchMessage] = useState('');
+  
+  // Delivery PIN states
+  const [showPin, setShowPin] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [isDelivering, setIsDelivering] = useState(false);
+  const [deliveryError, setDeliveryError] = useState('');
 
   useEffect(() => {
     api.getPackage(id)
@@ -76,7 +82,29 @@ export default function PackageDetailPage() {
   );
 
   const isOwner = user?.id === pkg.userId;
+  const acceptedMatch = pkg.matches?.find(m => m.isAccepted);
+  const isCarrier = acceptedMatch?.travelerId === user?.id;
+  
   const sortedMatches = [...matches].sort((a, b) => b.matchScore - a.matchScore);
+
+  const handleDeliver = async () => {
+    if (!pinInput || pinInput.length !== 4) {
+      setDeliveryError('Please enter a 4-digit PIN');
+      return;
+    }
+    
+    setIsDelivering(true);
+    setDeliveryError('');
+    try {
+      await api.deliverPackage(pkg.id, pinInput);
+      const updated = await api.getPackage(pkg.id);
+      setPkg(updated.data);
+    } catch (err: any) {
+      setDeliveryError(err.message || 'Invalid PIN');
+    } finally {
+      setIsDelivering(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -296,6 +324,79 @@ export default function PackageDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          
+          {/* Delivery PIN Section */}
+          {(pkg.status === 'ACCEPTED' || pkg.status === 'DELIVERED') && (isOwner || isCarrier) && (
+            <div className="glass-card p-6 border-indigo-500/30 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+              
+              <div className="flex items-center gap-2 mb-4">
+                <Lock className="w-5 h-5 text-indigo-400" />
+                <h2 className="text-lg font-bold font-syne text-white">Delivery Verification</h2>
+              </div>
+              
+              {pkg.status === 'DELIVERED' ? (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                  <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                  <div className="font-bold text-emerald-400">Package Delivered!</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {pkg.deliveredAt ? format(new Date(pkg.deliveredAt), 'PPp') : 'Verification successful'}
+                  </div>
+                </div>
+              ) : isOwner ? (
+                <div>
+                  <p className="text-xs text-gray-400 mb-3">
+                    Give this 4-digit PIN to the person receiving the package. The Carrier needs it to complete the delivery and get paid.
+                  </p>
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-black/40 border border-white/5">
+                    <div className="text-2xl font-black tracking-widest font-mono text-white">
+                      {showPin ? pkg.deliveryPin : '••••'}
+                    </div>
+                    <button 
+                      onClick={() => setShowPin(!showPin)}
+                      className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                    >
+                      {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              ) : isCarrier ? (
+                <div>
+                  <p className="text-xs text-gray-400 mb-3">
+                    When you hand over the package, ask the receiver for the 4-digit Delivery PIN to complete your job and unlock your payment!
+                  </p>
+                  
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      maxLength={4}
+                      placeholder="Enter 4-digit PIN"
+                      value={pinInput}
+                      onChange={(e) => setPinInput(e.target.value.replace(/[^0-9]/g, ''))}
+                      className="input-field text-center tracking-widest font-mono font-bold text-lg"
+                    />
+                  </div>
+                  
+                  {deliveryError && (
+                    <div className="mt-2 text-xs text-red-400">{deliveryError}</div>
+                  )}
+                  
+                  <button 
+                    onClick={handleDeliver}
+                    disabled={isDelivering || pinInput.length !== 4}
+                    className="btn-primary w-full mt-3 justify-center"
+                  >
+                    {isDelivering ? (
+                      <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Verifying...</>
+                    ) : (
+                      'Verify Delivery'
+                    )}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
+
           {/* Reward */}
           <div className="glass-card p-6">
             <div className="text-xs text-gray-500 mb-1">Your Reward Offer</div>

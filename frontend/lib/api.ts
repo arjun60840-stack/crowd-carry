@@ -155,6 +155,10 @@ class ApiClient {
     return this.request(`/api/packages/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
+  async deliverPackage(id: string, pin: string) {
+    return this.request(`/api/packages/${id}/deliver`, { method: 'POST', body: JSON.stringify({ pin }) });
+  }
+
   async getPackagePricing(id: string) {
     return this.request(`/api/packages/${id}/pricing`);
   }
@@ -317,6 +321,8 @@ export interface Package {
   destinationLat?: number;
   destinationLng?: number;
   matches?: Match[];
+  deliveryPin?: string;
+  deliveredAt?: string;
   createdAt: string;
 }
 

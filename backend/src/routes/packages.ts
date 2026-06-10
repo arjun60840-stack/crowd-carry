@@ -359,4 +359,77 @@ router.get('/:id/pricing', async (req: AuthRequest, res: Response): Promise<void
   }
 });
 
+// POST /api/packages/:id/deliver
+router.post('/:id/deliver', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { pin } = req.body;
+    
+    if (!pin) {
+      res.status(400).json({ success: false, message: 'Delivery PIN is required' });
+      return;
+    }
+
+    const pkg = await prisma.package.findUnique({
+      where: { id: req.params.id },
+      include: {
+        matches: {
+          where: { isAccepted: true }
+        }
+      }
+    });
+
+    if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
+    
+    // Check if the current user is the accepted carrier for this package
+    const acceptedMatch = pkg.matches[0];
+    if (!acceptedMatch || acceptedMatch.travelerId !== req.user!.id) {
+      res.status(403).json({ success: false, message: 'Not authorized to deliver this package' });
+      return;
+    }
+
+    if (pkg.status !== 'ACCEPTED') {
+      res.status(400).json({ success: false, message: 'Package is not in transit' });
+      return;
+    }
+
+    if (pkg.deliveryPin !== pin) {
+      res.status(400).json({ success: false, message: 'Invalid delivery PIN' });
+      return;
+    }
+
+    // PIN is correct, mark as delivered
+    await prisma.package.update({
+      where: { id: pkg.id },
+      data: {
+        status: 'DELIVERED',
+        deliveredAt: new Date()
+      }
+    });
+
+    // Notify sender
+    await prisma.notification.create({
+      data: {
+        userId: pkg.userId,
+        type: 'PACKAGE_DELIVERED',
+        title: 'Package Delivered! 📦',
+        message: `Your package to ${pkg.destinationCity} has been successfully delivered by the carrier.`,
+        data: JSON.stringify({ packageId: pkg.id }),
+      },
+    });
+
+    // Update carrier stats
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        completedDeliveries: { increment: 1 }
+      }
+    });
+
+    res.json({ success: true, message: 'Package delivered successfully!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Failed to verify delivery' });
+  }
+});
+
 export default router;

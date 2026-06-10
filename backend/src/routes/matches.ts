@@ -184,10 +184,16 @@ router.post('/:id/accept', authenticate, async (req: AuthRequest, res: Response)
       data: { isAccepted: true, acceptedAt: new Date() },
     });
 
-    // Update package status
+    // Generate a random 4-digit delivery PIN
+    const deliveryPin = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Update package status and add the PIN
     await prisma.package.update({
       where: { id: match.packageId },
-      data: { status: 'ACCEPTED' },
+      data: { 
+        status: 'ACCEPTED',
+        deliveryPin
+      },
     });
 
     // Notify sender
