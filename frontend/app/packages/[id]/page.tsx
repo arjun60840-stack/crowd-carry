@@ -6,12 +6,13 @@ import { useParams } from 'next/navigation';
 import { 
   Package, MapPin, Weight, DollarSign, Clock, Loader2, 
   Zap, Star, Shield, ArrowLeft, CheckCircle, AlertTriangle,
-  ChevronRight, Leaf, Eye, EyeOff, Lock
+  ChevronRight, Leaf, Eye, EyeOff, Lock, MessageSquare
 } from 'lucide-react';
 import api, { Package as Pkg, Match } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
+import ChatModal from '@/components/ChatModal';
 
 // Dynamically import Map to avoid SSR issues
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false, loading: () => (
@@ -40,6 +41,9 @@ export default function PackageDetailPage() {
   const [pinInput, setPinInput] = useState('');
   const [isDelivering, setIsDelivering] = useState(false);
   const [deliveryError, setDeliveryError] = useState('');
+
+  // Chat states
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     api.getPackage(id)
@@ -104,6 +108,16 @@ export default function PackageDetailPage() {
     } finally {
       setIsDelivering(false);
     }
+  };
+
+  const getChatPartnerName = () => {
+    if (isOwner && acceptedMatch?.traveler) {
+      return `${acceptedMatch.traveler.firstName} ${acceptedMatch.traveler.lastName}`;
+    }
+    if (isCarrier && pkg.user) {
+      return `${pkg.user.firstName} ${pkg.user.lastName}`;
+    }
+    return 'User';
   };
 
   return (
@@ -330,10 +344,23 @@ export default function PackageDetailPage() {
             <div className="glass-card p-6 border-indigo-500/30 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
               
-              <div className="flex items-center gap-2 mb-4">
-                <Lock className="w-5 h-5 text-indigo-400" />
-                <h2 className="text-lg font-bold font-syne text-white">Delivery Verification</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-indigo-400" />
+                  <h2 className="text-lg font-bold font-syne text-white">Delivery Verification</h2>
+                </div>
               </div>
+
+              {/* Chat Button */}
+              {pkg.status === 'ACCEPTED' && acceptedMatch && (
+                <button
+                  onClick={() => setIsChatOpen(true)}
+                  className="w-full mb-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 text-indigo-400" />
+                  Chat with {isOwner ? 'Carrier' : 'Sender'}
+                </button>
+              )}
               
               {pkg.status === 'DELIVERED' ? (
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
@@ -451,6 +478,16 @@ export default function PackageDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Chat Modal */}
+      {acceptedMatch && (
+        <ChatModal 
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          matchId={acceptedMatch.id}
+          otherUserName={getChatPartnerName()}
+        />
+      )}
     </div>
   );
 }

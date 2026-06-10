@@ -8,6 +8,9 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
+import http from 'http';
+import { Server } from 'socket.io';
+import { setupSocket } from './socket';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -19,11 +22,24 @@ import reviewRoutes from './routes/reviews';
 import notificationRoutes from './routes/notifications';
 import adminRoutes from './routes/admin';
 import sustainabilityRoutes from './routes/sustainability';
+import chatRoutes from './routes/chat';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  }
+});
+
+// Setup Socket events
+setupSocket(io);
 
 // Security middleware
 app.use(helmet({
@@ -74,6 +90,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/sustainability', sustainabilityRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -93,10 +110,11 @@ app.use('*', (req, res) => {
 // Error handler
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   logger.info(`🚀 Crowd Carry API running on port ${PORT}`);
   logger.info(`📊 Environment: ${process.env.NODE_ENV}`);
   logger.info(`🌍 Frontend URL: ${process.env.FRONTEND_URL}`);
+  logger.info(`🔌 Socket.io server initialized`);
 });
 
 export default app;
