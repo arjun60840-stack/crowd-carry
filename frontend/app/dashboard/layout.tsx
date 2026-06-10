@@ -94,7 +94,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</div>
+                <div className="text-sm font-medium flex items-center gap-1 truncate">
+                  {user?.firstName} {user?.lastName}
+                  {user?.isVerifiedBadge && (
+                    <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="currentColor" />
+                  )}
+                </div>
                 <div className="text-xs text-gray-500 truncate">{user?.role}</div>
               </div>
             </div>
@@ -151,6 +156,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div className="absolute right-0 top-full mt-2 w-48 glass-card py-2 shadow-xl">
                   <Link href="/profile" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5" onClick={() => setUserMenuOpen(false)}>
                     <User className="w-4 h-4" /> Profile
+                  </Link>
+                  <Link href="/dashboard/kyc" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5" onClick={() => setUserMenuOpen(false)}>
+                    <Shield className="w-4 h-4" /> Verify Identity
                   </Link>
                   {user?.role === 'ADMIN' && (
                     <Link href="/admin" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5" onClick={() => setUserMenuOpen(false)}>

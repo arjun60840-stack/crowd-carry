@@ -15,33 +15,35 @@ export const setupSocket = (io: Server) => {
     });
 
     // Handle incoming messages
-    socket.on('sendMessage', async (data: { matchId: string; senderId: string; text: string }) => {
-      const { matchId, senderId, text } = data;
-
+    socket.on('sendMessage', async (data: any) => {
       try {
-        // Save message to database
+        const { matchId, senderId, text } = data;
+        
+        // Save to database
         const message = await prisma.message.create({
-          data: {
-            matchId,
-            senderId,
-            text,
-          },
-          include: {
-            sender: { select: { id: true, firstName: true, lastName: true, avatar: true } }
-          }
+          data: { matchId, senderId, text },
+          include: { sender: { select: { id: true, firstName: true, lastName: true } } }
         });
 
-        // Broadcast to everyone in the room (including the sender for acknowledgment, or use .to().emit)
+        // Broadcast to everyone in the room (including sender to confirm)
         io.to(matchId).emit('receiveMessage', message);
-        
-        logger.info(`Message sent in room ${matchId} by ${senderId}`);
       } catch (error) {
-        logger.error(`Error saving message: ${error}`);
+        logger.error('Failed to send message via socket', error);
       }
     });
 
+    // Real-Time GPS Tracking
+    socket.on('shareLocation', (data: { matchId: string, lat: number, lng: number }) => {
+      // Broadcast location to the other person in the room
+      socket.to(data.matchId).emit('locationUpdate', {
+        lat: data.lat,
+        lng: data.lng,
+        timestamp: new Date().toISOString()
+      });
+    });
+
     socket.on('disconnect', () => {
-      logger.info(`User disconnected from socket: ${socket.id}`);
+      logger.info(`Client disconnected: ${socket.id}`);
     });
   });
 };

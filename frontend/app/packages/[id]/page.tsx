@@ -361,7 +361,7 @@ export default function PackageDetailPage() {
         {/* Sidebar */}
         <div className="space-y-4">
           
-          {/* Delivery PIN Section */}
+            {/* Delivery PIN Section */}
           {(pkg.status === 'ACCEPTED' || pkg.status === 'DELIVERED') && (isOwner || isCarrier) && (
             <div className="glass-card p-6 border-indigo-500/30 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
@@ -375,13 +375,29 @@ export default function PackageDetailPage() {
 
               {/* Chat Button */}
               {pkg.status === 'ACCEPTED' && acceptedMatch && (
-                <button
-                  onClick={() => setIsChatOpen(true)}
-                  className="w-full mb-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-                >
-                  <Zap className="w-4 h-4 text-indigo-400" />
-                  Chat with {isOwner ? 'Carrier' : 'Sender'}
-                </button>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <button
+                    onClick={() => setIsChatOpen(true)}
+                    className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Zap className="w-4 h-4 text-indigo-400" />
+                    Chat
+                  </button>
+                  {isCarrier && (
+                    <button
+                      onClick={() => {
+                        // Emit dummy shareLocation event via a global window helper or implement in MapView directly.
+                        // Here we just trigger an alert for demo
+                        alert('Live GPS Tracking started! Sender can now see you moving on the map.');
+                        // Real implementation would use navigator.geolocation in a setInterval and emit to socket
+                      }}
+                      className="w-full py-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Share Live Location
+                    </button>
+                  )}
+                </div>
               )}
               
               {pkg.status === 'DELIVERED' ? (

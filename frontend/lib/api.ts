@@ -247,6 +247,14 @@ class ApiClient {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.request(`/api/admin/packages${query}`);
   }
+
+  // KYC
+  async submitKyc(documentUrl: string) {
+    return this.request('/api/users/kyc', {
+      method: 'POST',
+      body: JSON.stringify({ documentUrl })
+    });
+  }
 }
 
 // Types

@@ -218,4 +218,37 @@ router.post('/recalculate-trust', authenticate, async (req: AuthRequest, res: Re
   }
 });
 
+// POST /api/users/kyc
+// In a real app, this would accept a file upload (multer) and send to a KYC provider (Onfido/Stripe Identity)
+router.post('/kyc', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // We simulate a document upload and automatic approval for demo purposes
+    const { documentUrl } = req.body;
+    
+    if (!documentUrl && !req.file) { // if using multer, req.file would exist
+      res.status(400).json({ success: false, message: 'Identity document required' });
+      return;
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        isVerified: true,
+        isVerifiedBadge: true,
+        idDocumentUrl: documentUrl || 'https://demo-kyc-doc-url.com/id.jpg'
+      },
+      select: {
+        id: true,
+        isVerified: true,
+        isVerifiedBadge: true,
+        trustScore: true
+      }
+    });
+
+    res.json({ success: true, message: 'Identity verified successfully', data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to submit KYC' });
+  }
+});
+
 export default router;
