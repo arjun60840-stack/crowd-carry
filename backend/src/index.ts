@@ -23,6 +23,7 @@ import notificationRoutes from './routes/notifications';
 import adminRoutes from './routes/admin';
 import sustainabilityRoutes from './routes/sustainability';
 import chatRoutes from './routes/chat';
+import paymentRoutes from './routes/payments';
 
 dotenv.config();
 
@@ -71,6 +72,9 @@ const authLimiter = rateLimit({
   message: { success: false, message: 'Too many auth attempts, please try again later.' },
 });
 
+// We need to handle webhook raw body before express.json()
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -91,6 +95,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/sustainability', sustainabilityRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

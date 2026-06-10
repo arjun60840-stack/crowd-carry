@@ -13,6 +13,8 @@ import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
 import ChatModal from '@/components/ChatModal';
+import ReviewModal from '@/components/ReviewModal';
+import { useSearchParams } from 'next/navigation';
 
 // Dynamically import Map to avoid SSR issues
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false, loading: () => (
@@ -42,8 +44,13 @@ export default function PackageDetailPage() {
   const [isDelivering, setIsDelivering] = useState(false);
   const [deliveryError, setDeliveryError] = useState('');
 
-  // Chat states
   const [isChatOpen, setIsChatOpen] = useState(false);
+  
+  // Payment and Review states
+  const searchParams = useSearchParams();
+  const paymentStatus = searchParams.get('payment');
+  const [isFunding, setIsFunding] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   useEffect(() => {
     api.getPackage(id)
@@ -103,10 +110,25 @@ export default function PackageDetailPage() {
       await api.deliverPackage(pkg.id, pinInput);
       const updated = await api.getPackage(pkg.id);
       setPkg(updated.data);
+      // Delivery successful! Open the review modal so they can review the sender.
+      setIsReviewOpen(true);
     } catch (err: any) {
       setDeliveryError(err.message || 'Invalid PIN');
     } finally {
       setIsDelivering(false);
+    }
+  };
+
+  const handleFundEscrow = async () => {
+    setIsFunding(true);
+    try {
+      const res: any = await api.fundEscrow(pkg.id);
+      if (res.url) {
+        window.location.href = res.url; // Redirect to Stripe Checkout
+      }
+    } catch (error) {
+      console.error('Failed to initiate checkout', error);
+      setIsFunding(false);
     }
   };
 
@@ -445,6 +467,38 @@ export default function PackageDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* Escrow Payment Action */}
+            {isOwner && pkg.status === 'ACCEPTED' && (
+              <div className="mt-6 pt-4 border-t border-white/10">
+                {paymentStatus === 'success' ? (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+                    <CheckCircle className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
+                    <div className="text-sm font-semibold text-emerald-400">Escrow Funded!</div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleFundEscrow}
+                    disabled={isFunding}
+                    className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isFunding ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
+                    Fund Escrow via Stripe
+                  </button>
+                )}
+              </div>
+            )}
+            
+            {/* Review Action */}
+            {isOwner && pkg.status === 'DELIVERED' && (
+               <button
+                 onClick={() => setIsReviewOpen(true)}
+                 className="w-full mt-4 py-3 bg-amber-500 hover:bg-amber-600 rounded-xl text-white font-semibold transition-colors flex items-center justify-center gap-2"
+               >
+                 <Star className="w-5 h-5" />
+                 Leave a Review
+               </button>
+            )}
           </div>
 
           {/* Sender */}
@@ -486,6 +540,17 @@ export default function PackageDetailPage() {
           onClose={() => setIsChatOpen(false)}
           matchId={acceptedMatch.id}
           otherUserName={getChatPartnerName()}
+        />
+      )}
+
+      {/* Review Modal */}
+      {acceptedMatch && (
+        <ReviewModal
+          isOpen={isReviewOpen}
+          onClose={() => setIsReviewOpen(false)}
+          revieweeId={isOwner ? acceptedMatch.travelerId : pkg.userId}
+          packageId={pkg.id}
+          revieweeName={getChatPartnerName()}
         />
       )}
     </div>

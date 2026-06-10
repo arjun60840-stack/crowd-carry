@@ -163,6 +163,14 @@ class ApiClient {
     return this.request(`/api/packages/${id}/pricing`);
   }
 
+  // Payments / Escrow
+  async fundEscrow(packageId: string) {
+    return this.request('/api/payments/create-checkout', { 
+      method: 'POST', 
+      body: JSON.stringify({ packageId }) 
+    });
+  }
+
   // Matches
   async findMatches(packageId: string) {
     return this.request(`/api/matches/package/${packageId}`);
