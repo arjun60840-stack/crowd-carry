@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { 
   MapPin, Weight, DollarSign, Clock, Loader2, 
-  Car, Calendar, Star, ArrowLeft, Leaf, Package
+  Car, Calendar, Star, ArrowLeft, Leaf, Package, Zap
 } from 'lucide-react';
 import api, { Trip } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
+import { io } from 'socket.io-client';
 
 // Dynamically import Map to avoid SSR issues
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false, loading: () => (
@@ -24,6 +25,7 @@ export default function TripDetailPage() {
   const { user } = useAuth();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTracking, setIsTracking] = useState(false);
 
   useEffect(() => {
     api.getTrip(id)
@@ -139,6 +141,101 @@ export default function TripDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {/* Tracking */}
+          {isOwner && trip.isActive && trip.matches && trip.matches.some(m => m.package?.status === 'ACCEPTED') && (
+            <div className="glass-card p-6 border-emerald-500/30 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+              <h2 className="text-lg font-bold font-syne mb-4">Carrier GPS Tracking</h2>
+              <p className="text-xs text-gray-400 mb-4">
+                Share your live location with all senders who have accepted packages on this trip.
+              </p>
+              <button
+                onClick={() => {
+                  if (!isTracking) {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                          setIsTracking(true);
+                          
+                          // Set up live location watching
+                          const token = localStorage.getItem('cc_token');
+                          const socketUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+                          const trackingSocket = io(socketUrl, { auth: { token } });
+                          
+                          // Join all active match rooms
+                          const activeMatches = trip.matches!.filter(m => m.package?.status === 'ACCEPTED');
+                          activeMatches.forEach(match => {
+                            trackingSocket.emit('joinRoom', match.id);
+                          });
+                          
+                          (window as any).trackingSocket = trackingSocket;
+
+                          const watchId = navigator.geolocation.watchPosition(
+                            (pos) => {
+                              // Broadcast to all active matches
+                              activeMatches.forEach(match => {
+                                trackingSocket.emit('shareLocation', {
+                                  matchId: match.id,
+                                  lat: pos.coords.latitude,
+                                  lng: pos.coords.longitude
+                                });
+                              });
+                            },
+                            (err) => console.error(err),
+                            { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                          );
+                          (window as any).geoWatchId = watchId;
+                        },
+                        (err) => alert('Please enable GPS tracking to share your location.')
+                      );
+                    } else {
+                      alert('Geolocation is not supported by your browser.');
+                    }
+                  } else {
+                    setIsTracking(false);
+                    if ((window as any).geoWatchId) {
+                      navigator.geolocation.clearWatch((window as any).geoWatchId);
+                    }
+                    if ((window as any).trackingSocket) {
+                      (window as any).trackingSocket.disconnect();
+                    }
+                  }
+                }}
+                className={`w-full py-3 ${isTracking ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30' : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30'} border rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2`}
+              >
+                <MapPin className="w-4 h-4" />
+                {isTracking ? 'Stop Broadcasting Location' : 'Broadcast Live Location'}
+              </button>
+            </div>
+          )}
+
+          {/* Assigned Packages */}
+          {isOwner && trip.matches && trip.matches.length > 0 && (
+            <div className="glass-card p-4">
+              <h2 className="text-lg font-bold font-syne mb-3">Assigned Packages</h2>
+              <div className="space-y-3">
+                {trip.matches.map(match => (
+                  <Link 
+                    href={`/packages/${match.packageId}`}
+                    key={match.id} 
+                    className="block p-3 rounded-xl bg-white/5 border border-white/5 hover:border-indigo-500/30 transition-colors"
+                  >
+                    <div className="font-semibold text-sm mb-1">{match.package?.title}</div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400">{match.package?.weight}kg</span>
+                      <span className={`px-2 py-0.5 rounded-full ${
+                        match.package?.status === 'DELIVERED' ? 'bg-emerald-500/10 text-emerald-400' :
+                        match.package?.status === 'ACCEPTED' ? 'bg-indigo-500/10 text-indigo-400' :
+                        'bg-yellow-500/10 text-yellow-400'
+                      }`}>
+                        {match.package?.status}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Pricing */}
           <div className="glass-card p-6 border-emerald-500/20">
             <div className="text-xs text-gray-500 mb-1">Price per Kg</div>

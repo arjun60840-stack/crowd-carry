@@ -329,6 +329,7 @@ export interface Trip {
   destinationLat?: number;
   destinationLng?: number;
   createdAt: string;
+  matches?: any[];
 }
 
 export interface Package {
