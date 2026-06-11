@@ -257,10 +257,10 @@ class ApiClient {
     return this.request(`/api/chat/${matchId}`);
   }
 
-  async shareLiveLocation(matchId: string, lat: number, lng: number) {
-    return this.request(`/api/chat/${matchId}/location`, {
+  async shareLiveLocation(packageId: string, lat: number, lng: number) {
+    return this.request(`/api/packages/${packageId}/location`, {
       method: 'POST',
-      body: JSON.stringify({ lat, lng })
+      body: JSON.stringify({ lat, lng }),
     });
   }
 

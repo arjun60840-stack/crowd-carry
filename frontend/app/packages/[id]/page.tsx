@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
 import ChatModal from '@/components/ChatModal';
 import ReviewModal from '@/components/ReviewModal';
+import PaymentModal from '@/components/PaymentModal';
 import { useSearchParams } from 'next/navigation';
 import { io } from 'socket.io-client';
 
@@ -50,7 +51,9 @@ export default function PackageDetailPage() {
   // Payment and Review states
   const searchParams = useSearchParams();
   const paymentStatus = searchParams.get('payment');
+  const [isEscrowFunded, setIsEscrowFunded] = useState(paymentStatus === 'success');
   const [isFunding, setIsFunding] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   useEffect(() => {
@@ -533,19 +536,18 @@ export default function PackageDetailPage() {
             {/* Escrow Payment Action */}
             {isOwner && pkg.status === 'ACCEPTED' && (
               <div className="mt-6 pt-4 border-t border-white/10">
-                {paymentStatus === 'success' ? (
+                {isEscrowFunded ? (
                   <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
                     <CheckCircle className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
                     <div className="text-sm font-semibold text-emerald-400">Escrow Funded!</div>
                   </div>
                 ) : (
                   <button
-                    onClick={handleFundEscrow}
-                    disabled={isFunding}
-                    className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white font-semibold transition-colors flex items-center justify-center gap-2"
+                    onClick={() => setIsPaymentModalOpen(true)}
+                    className="w-full py-3 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-white font-semibold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
                   >
-                    {isFunding ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
-                    Fund Escrow via Stripe
+                    <Shield className="w-5 h-5" />
+                    Secure Funds in Escrow
                   </button>
                 )}
               </div>
@@ -555,7 +557,7 @@ export default function PackageDetailPage() {
             {isOwner && pkg.status === 'DELIVERED' && (
                <button
                  onClick={() => setIsReviewOpen(true)}
-                 className="w-full mt-4 py-3 bg-amber-500 hover:bg-amber-600 rounded-xl text-white font-semibold transition-colors flex items-center justify-center gap-2"
+                 className="w-full mt-4 py-3 bg-amber-500 hover:bg-amber-600 rounded-xl text-white font-semibold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
                >
                  <Star className="w-5 h-5" />
                  Leave a Review
@@ -594,6 +596,22 @@ export default function PackageDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal 
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        amount={pkg.rewardAmount}
+        onPaymentSuccess={async () => {
+          setIsEscrowFunded(true);
+          try {
+            // Tell backend to mark as funded
+            await api.fundEscrow(pkg.id);
+          } catch (err) {
+            console.error('Failed to notify backend of payment', err);
+          }
+        }}
+      />
 
       {/* Chat Modal */}
       {acceptedMatch && (
