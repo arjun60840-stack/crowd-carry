@@ -257,6 +257,13 @@ class ApiClient {
     return this.request(`/api/chat/${matchId}`);
   }
 
+  async shareLiveLocation(matchId: string, lat: number, lng: number) {
+    return this.request(`/api/chat/${matchId}/location`, {
+      method: 'POST',
+      body: JSON.stringify({ lat, lng })
+    });
+  }
+
   // KYC
   async submitKyc(documentUrl: string) {
     return this.request('/api/users/kyc', {

@@ -15,6 +15,7 @@ import dynamic from 'next/dynamic';
 import ChatModal from '@/components/ChatModal';
 import ReviewModal from '@/components/ReviewModal';
 import { useSearchParams } from 'next/navigation';
+import { io } from 'socket.io-client';
 
 // Dynamically import Map to avoid SSR issues
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false, loading: () => (
@@ -43,8 +44,8 @@ export default function PackageDetailPage() {
   const [pinInput, setPinInput] = useState('');
   const [isDelivering, setIsDelivering] = useState(false);
   const [deliveryError, setDeliveryError] = useState('');
-
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isTracking, setIsTracking] = useState(false);
   
   // Payment and Review states
   const searchParams = useSearchParams();
@@ -186,9 +187,11 @@ export default function PackageDetailPage() {
           {(pkg.pickupLat && pkg.destinationLat) && (
             <div className="glass-card p-4">
               <h2 className="text-lg font-bold font-syne mb-3">Route Map</h2>
-              <MapView
-                pickup={{ lat: pkg.pickupLat!, lng: pkg.pickupLng!, label: pkg.pickupCity }}
-                destination={{ lat: pkg.destinationLat!, lng: pkg.destinationLng!, label: pkg.destinationCity }}
+              <MapView 
+                pickup={{ lat: pkg.pickupLat!, lng: pkg.pickupLng!, label: pkg.pickupCity }} 
+                destination={{ lat: pkg.destinationLat!, lng: pkg.destinationLng!, label: pkg.destinationCity }} 
+                isLiveTracking={isTracking}
+                matchId={acceptedMatch?.id}
               />
             </div>
           )}
@@ -383,20 +386,63 @@ export default function PackageDetailPage() {
                     <Zap className="w-4 h-4 text-indigo-400" />
                     Chat
                   </button>
-                  {isCarrier && (
+                  {isCarrier ? (
                     <button
                       onClick={() => {
-                        // Emit dummy shareLocation event via a global window helper or implement in MapView directly.
-                        // Here we just trigger an alert for demo
-                        alert('Live GPS Tracking started! Sender can now see you moving on the map.');
-                        // Real implementation would use navigator.geolocation in a setInterval and emit to socket
+                        if (!isTracking) {
+                          if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                              (position) => {
+                                setIsTracking(true);
+                                // Set up live location watching
+                                const token = localStorage.getItem('cc_token');
+                                const socketUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+                                const trackingSocket = io(socketUrl, { auth: { token } });
+                                trackingSocket.emit('joinRoom', acceptedMatch.id);
+                                (window as any).trackingSocket = trackingSocket;
+
+                                const watchId = navigator.geolocation.watchPosition(
+                                  (pos) => {
+                                    trackingSocket.emit('shareLocation', {
+                                      matchId: acceptedMatch.id,
+                                      lat: pos.coords.latitude,
+                                      lng: pos.coords.longitude
+                                    });
+                                  },
+                                  (err) => console.error(err),
+                                  { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                                );
+                                (window as any).geoWatchId = watchId;
+                              },
+                              (err) => alert('Please enable GPS tracking to share your location.')
+                            );
+                          } else {
+                            alert('Geolocation is not supported by your browser.');
+                          }
+                        } else {
+                          setIsTracking(false);
+                          if ((window as any).geoWatchId) {
+                            navigator.geolocation.clearWatch((window as any).geoWatchId);
+                          }
+                          if ((window as any).trackingSocket) {
+                            (window as any).trackingSocket.disconnect();
+                          }
+                        }
                       }}
-                      className="w-full py-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                      className={`w-full py-3 ${isTracking ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-500/30' : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30'} border rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2`}
                     >
                       <MapPin className="w-4 h-4" />
-                      Share Live Location
+                      {isTracking ? 'Stop Sharing' : 'Share Location'}
                     </button>
-                  )}
+                  ) : isOwner ? (
+                    <button
+                      onClick={() => setIsTracking(!isTracking)}
+                      className={`w-full py-3 ${isTracking ? 'bg-indigo-500 text-white' : 'bg-indigo-500/20 text-indigo-400'} hover:bg-indigo-600 border border-indigo-500/30 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2`}
+                    >
+                      <MapPin className="w-4 h-4" />
+                      {isTracking ? 'Hide Tracking' : 'Track Carrier'}
+                    </button>
+                  ) : null}
                 </div>
               )}
               
