@@ -152,6 +152,20 @@ function ProfileContent() {
                 {user.isPhoneVerified ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-gray-600" />}
                 Phone Verified
               </div>
+              <div className="col-span-2 flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                <div className="flex items-center gap-1">
+                  {user.isVerified ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-gray-600" />}
+                  Identity Verified
+                </div>
+                {!user.isVerified && (
+                  <button 
+                    onClick={() => router.push('/dashboard/kyc')}
+                    className="text-indigo-400 hover:text-indigo-300 font-medium"
+                  >
+                    Verify Now
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
