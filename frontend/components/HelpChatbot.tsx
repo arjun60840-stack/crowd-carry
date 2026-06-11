@@ -56,9 +56,11 @@ export default function HelpChatbot() {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const dragStartElementPos = useRef({ x: 0, y: 0 });
+  const hasDragged = useRef(false);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);
+    hasDragged.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStartPos.current = { x: e.clientX, y: e.clientY };
     dragStartElementPos.current = { ...position };
@@ -66,9 +68,17 @@ export default function HelpChatbot() {
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
+    
+    // Check if they moved more than a tiny threshold to count as a drag (not a click)
+    const moveX = e.clientX - dragStartPos.current.x;
+    const moveY = e.clientY - dragStartPos.current.y;
+    if (Math.abs(moveX) > 3 || Math.abs(moveY) > 3) {
+      hasDragged.current = true;
+    }
+
     setPosition({
-      x: dragStartElementPos.current.x + (e.clientX - dragStartPos.current.x),
-      y: dragStartElementPos.current.y + (e.clientY - dragStartPos.current.y),
+      x: dragStartElementPos.current.x + moveX,
+      y: dragStartElementPos.current.y + moveY,
     });
   };
 
@@ -237,10 +247,18 @@ export default function HelpChatbot() {
 
       {/* Floating Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-110 hover:shadow-indigo-500/50 transition-all duration-300 z-50 ${isOpen ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100 absolute'}`}
+        onClick={() => {
+          if (!hasDragged.current) {
+            setIsOpen(!isOpen);
+          }
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className={`w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-110 hover:shadow-indigo-500/50 transition-all duration-300 z-50 cursor-move touch-none select-none ${isOpen ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100 absolute'}`}
       >
-        <MessageCircle className="w-7 h-7" />
+        <MessageCircle className="w-7 h-7 pointer-events-none" />
       </button>
       
       {/* Invisible placeholder to maintain layout flow if needed, though position is fixed */}
