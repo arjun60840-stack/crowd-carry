@@ -144,13 +144,23 @@ function ProfileContent() {
               />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
-              <div className="flex items-center gap-1">
-                {user.isEmailVerified ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-gray-600" />}
-                Email Verified
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  {user.isEmailVerified ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-gray-600" />}
+                  Email Verified
+                </div>
+                {!user.isEmailVerified && (
+                  <button onClick={async () => { await api.verifyEmail(); refreshUser(); }} className="text-indigo-400 hover:text-indigo-300 font-medium">Verify</button>
+                )}
               </div>
-              <div className="flex items-center gap-1">
-                {user.isPhoneVerified ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-gray-600" />}
-                Phone Verified
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  {user.isPhoneVerified ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <X className="w-3 h-3 text-gray-600" />}
+                  Phone Verified
+                </div>
+                {!user.isPhoneVerified && (
+                  <button onClick={async () => { await api.verifyPhone(); refreshUser(); }} className="text-indigo-400 hover:text-indigo-300 font-medium">Verify</button>
+                )}
               </div>
               <div className="col-span-2 flex items-center justify-between mt-2 pt-2 border-t border-white/5">
                 <div className="flex items-center gap-1">

@@ -8,7 +8,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 const stripe = process.env.STRIPE_SECRET_KEY 
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' }) 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY) 
   : null;
 
 // POST /api/payments/create-checkout
@@ -116,7 +116,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: e
 
   // Handle successful checkout
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session;
+    const session = event.data.object as any;
     const packageId = session.metadata?.packageId;
     const userId = session.metadata?.userId;
 

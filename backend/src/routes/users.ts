@@ -251,4 +251,30 @@ router.post('/kyc', authenticate, async (req: AuthRequest, res: Response): Promi
   }
 });
 
+// POST /api/users/verify-email
+router.post('/verify-email', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { isEmailVerified: true },
+    });
+    res.json({ success: true, message: 'Email verified', data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to verify email' });
+  }
+});
+
+// POST /api/users/verify-phone
+router.post('/verify-phone', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { isPhoneVerified: true },
+    });
+    res.json({ success: true, message: 'Phone verified', data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to verify phone' });
+  }
+});
+
 export default router;

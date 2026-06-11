@@ -264,6 +264,14 @@ class ApiClient {
       body: JSON.stringify({ documentUrl })
     });
   }
+
+  async verifyEmail() {
+    return this.request('/api/users/verify-email', { method: 'POST' });
+  }
+
+  async verifyPhone() {
+    return this.request('/api/users/verify-phone', { method: 'POST' });
+  }
 }
 
 // Types
