@@ -40,7 +40,7 @@ export default function ChatModal({ matchId, isOpen, onClose, otherUserName }: C
     // Fetch initial chat history
     const fetchHistory = async () => {
       try {
-        const res: any = await api.request(`/api/chat/${matchId}`);
+        const res: any = await api.getChatHistory(matchId);
         setMessages(res.data);
       } catch (err) {
         console.error('Failed to fetch chat history', err);

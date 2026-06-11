@@ -6,7 +6,7 @@ import { Upload, ShieldCheck, CheckCircle, Loader2, AlertCircle } from 'lucide-r
 import api from '@/lib/api';
 
 export default function KYCPage() {
-  const { user, refetchUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -30,7 +30,7 @@ export default function KYCPage() {
       const fakeUrl = `https://s3.amazonaws.com/kyc/${file.name}`;
       
       await api.submitKyc(fakeUrl);
-      await refetchUser();
+      await refreshUser();
       setSuccess(true);
     } catch (err: any) {
       setError(err.message || 'Verification failed');

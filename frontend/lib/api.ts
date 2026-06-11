@@ -231,6 +231,10 @@ class ApiClient {
     return this.request(`/api/admin/users${query}`);
   }
 
+  async verifyAdminUser(userId: string) {
+    return this.request(`/api/admin/users/${userId}/verify`, { method: 'PUT' });
+  }
+
   async verifyUser(id: string) {
     return this.request(`/api/admin/users/${id}/verify`, { method: 'PUT' });
   }
@@ -246,6 +250,11 @@ class ApiClient {
   async getAdminPackages(params?: any) {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.request(`/api/admin/packages${query}`);
+  }
+
+  // Chat
+  async getChatHistory(matchId: string) {
+    return this.request(`/api/chat/${matchId}`);
   }
 
   // KYC
