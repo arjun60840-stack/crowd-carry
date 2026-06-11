@@ -136,6 +136,24 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* KYC Alert Banner */}
+      {!user?.isVerified && (
+        <div className="glass-card p-5 border-indigo-500/30 bg-indigo-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+              <Shield className="w-6 h-6 text-indigo-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold font-syne text-white">Verify Your Identity</h3>
+              <p className="text-sm text-gray-400">Get the Verified Badge to build trust and unlock higher-paying deliveries.</p>
+            </div>
+          </div>
+          <Link href="/dashboard/kyc" className="btn-primary whitespace-nowrap shrink-0">
+            Verify Now
+          </Link>
+        </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (

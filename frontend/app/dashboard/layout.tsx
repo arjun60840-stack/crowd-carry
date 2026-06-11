@@ -15,6 +15,7 @@ const navItems = [
   { href: '/packages', label: 'Packages', icon: Package },
   { href: '/trips', label: 'Trips', icon: Plane },
   { href: '/sustainability', label: 'Impact', icon: Leaf },
+  { href: '/dashboard/kyc', label: 'Verify Identity', icon: Shield },
 ];
 
 const adminItems = [
