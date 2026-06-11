@@ -51,6 +51,32 @@ export default function HelpChatbot() {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Dragging State
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const dragStartElementPos = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    dragStartElementPos.current = { ...position };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    setPosition({
+      x: dragStartElementPos.current.x + (e.clientX - dragStartPos.current.x),
+      y: dragStartElementPos.current.y + (e.clientY - dragStartPos.current.y),
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -103,14 +129,27 @@ export default function HelpChatbot() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div 
+      className="fixed z-50 flex flex-col items-end"
+      style={{ 
+        bottom: '24px', 
+        right: '24px',
+        transform: `translate(${position.x}px, ${position.y}px)`,
+      }}
+    >
       {/* Chat Window */}
       {isOpen && (
         <div className="glass-card mb-4 w-[350px] sm:w-[400px] h-[500px] max-h-[80vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300 shadow-2xl border-indigo-500/20 relative">
           <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none" />
           
-          {/* Header */}
-          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-md relative z-10">
+          {/* Header (Draggable Handle) */}
+          <div 
+            className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5 backdrop-blur-md relative z-10 cursor-move select-none touch-none"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                 <Bot className="w-6 h-6 text-white" />
