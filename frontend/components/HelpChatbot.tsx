@@ -163,7 +163,8 @@ export default function HelpChatbot() {
             </div>
             <button 
               onClick={() => setIsOpen(false)}
-              className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
+              onPointerDown={(e) => e.stopPropagation()}
+              className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white cursor-pointer"
             >
               <ChevronDown className="w-5 h-5" />
             </button>
