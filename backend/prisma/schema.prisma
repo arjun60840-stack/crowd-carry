@@ -278,18 +278,6 @@ model Transaction {
   
   @@map("transactions")
 }
-
-model SustainabilityStats {
-  id                String    @id @default(uuid())
-  totalCO2Saved     Float     @default(0)
-  totalDeliveries   Int       @default(0)
-  totalMoneySaved   Float     @default(0)
-  totalDistanceSaved Float    @default(0)
-  updatedAt         DateTime  @updatedAt
-  
-  @@map("sustainability_stats")
-}
-
 model Message {
   id                String    @id @default(uuid())
   matchId           String

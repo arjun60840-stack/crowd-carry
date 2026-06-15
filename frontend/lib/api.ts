@@ -216,6 +216,10 @@ class ApiClient {
     return this.request('/api/notifications/read-all', { method: 'PUT' });
   }
 
+  async deleteNotification(id: string) {
+    return this.request(`/api/notifications/${id}`, { method: 'DELETE' });
+  }
+
   // Sustainability
   async getSustainabilityStats() {
     return this.request<{ success: boolean; data: SustainabilityStats }>('/api/sustainability/stats');
@@ -235,10 +239,6 @@ class ApiClient {
     return this.request(`/api/admin/users/${userId}/verify`, { method: 'PUT' });
   }
 
-  async verifyUser(id: string) {
-    return this.request(`/api/admin/users/${id}/verify`, { method: 'PUT' });
-  }
-
   async getAdminReports(status = 'PENDING') {
     return this.request(`/api/admin/reports?status=${status}`);
   }
@@ -255,13 +255,6 @@ class ApiClient {
   // Chat
   async getChatHistory(matchId: string) {
     return this.request(`/api/chat/${matchId}`);
-  }
-
-  async shareLiveLocation(packageId: string, lat: number, lng: number) {
-    return this.request(`/api/packages/${packageId}/location`, {
-      method: 'POST',
-      body: JSON.stringify({ lat, lng }),
-    });
   }
 
   // KYC
