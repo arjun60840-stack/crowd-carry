@@ -48,9 +48,11 @@ export default function ChatModal({ matchId, isOpen, onClose, otherUserName }: C
     };
     fetchHistory();
 
-    // Connect to socket
+    // Connect to socket with JWT authentication
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cc_token') : null;
     const newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
       withCredentials: true,
+      auth: { token },
     });
     
     newSocket.on('connect', () => {

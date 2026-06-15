@@ -2,18 +2,21 @@
 
 import { useState } from 'react';
 import { X, CreditCard, Smartphone, CheckCircle, Loader2, ShieldCheck, Lock } from 'lucide-react';
+import api from '@/lib/api';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   amount: number;
+  packageId: string;
   onPaymentSuccess: () => void;
 }
 
-export default function PaymentModal({ isOpen, onClose, amount, onPaymentSuccess }: PaymentModalProps) {
+export default function PaymentModal({ isOpen, onClose, amount, packageId, onPaymentSuccess }: PaymentModalProps) {
   const [method, setMethod] = useState<'card' | 'upi' | 'wallet'>('card');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState('');
 
   // Card details state
   const [cardNumber, setCardNumber] = useState('');
@@ -25,31 +28,42 @@ export default function PaymentModal({ isOpen, onClose, amount, onPaymentSuccess
 
   if (!isOpen) return null;
 
-  const handlePay = () => {
+  const handlePay = async () => {
+    setError('');
+
     // Basic validation
     if (method === 'card' && (cardNumber.length < 15 || expiry.length < 5 || cvv.length < 3)) {
-      alert("Please fill in valid card details for the demo");
+      setError('Please fill in valid card details');
       return;
     }
     if (method === 'upi' && upiId.length < 5) {
-      alert("Please enter a valid UPI ID");
+      setError('Please enter a valid UPI ID');
       return;
     }
 
     setIsProcessing(true);
     
-    // Simulate payment processing delay (2 seconds)
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsSuccess(true);
+    try {
+      // Call backend escrow API to actually process the payment
+      const response: any = await api.fundEscrow(packageId);
       
-      // Call success callback after showing the checkmark for 1.5 seconds
-      setTimeout(() => {
-        onPaymentSuccess();
-        setIsSuccess(false);
-        onClose();
-      }, 1500);
-    }, 2000);
+      if (response.success) {
+        setIsProcessing(false);
+        setIsSuccess(true);
+        
+        // Call success callback after showing the checkmark
+        setTimeout(() => {
+          onPaymentSuccess();
+          setIsSuccess(false);
+          onClose();
+        }, 1500);
+      } else {
+        throw new Error(response.message || 'Payment failed');
+      }
+    } catch (err: any) {
+      setIsProcessing(false);
+      setError(err.message || 'Payment processing failed. Please try again.');
+    }
   };
 
   const handleCardNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,6 +124,13 @@ export default function PaymentModal({ isOpen, onClose, amount, onPaymentSuccess
                 <span className="text-gray-400">Total to Pay</span>
                 <span className="text-2xl font-black text-emerald-400 font-syne">₹{amount}</span>
               </div>
+
+              {/* Error */}
+              {error && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                  {error}
+                </div>
+              )}
 
               {/* Method Selection */}
               <div className="grid grid-cols-3 gap-3">

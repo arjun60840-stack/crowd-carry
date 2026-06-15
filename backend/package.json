@@ -11,7 +11,8 @@
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "test": "npx jest --passWithNoTests --forceExit"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
@@ -45,5 +46,10 @@
     "typescript": "^5.4.5",
     "uuid": "^9.0.1",
     "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "@types/jest": "^29.5.12"
   }
 }

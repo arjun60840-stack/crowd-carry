@@ -602,14 +602,9 @@ export default function PackageDetailPage() {
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         amount={pkg.rewardAmount}
-        onPaymentSuccess={async () => {
+        packageId={pkg.id}
+        onPaymentSuccess={() => {
           setIsEscrowFunded(true);
-          try {
-            // Tell backend to mark as funded
-            await api.fundEscrow(pkg.id);
-          } catch (err) {
-            console.error('Failed to notify backend of payment', err);
-          }
         }}
       />
 
