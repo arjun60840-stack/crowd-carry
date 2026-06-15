@@ -47,16 +47,14 @@ export default function PaymentModal({ isOpen, onClose, amount, packageId, onPay
       // Call backend escrow API to actually process the payment
       const response: any = await api.fundEscrow(packageId);
       
-      if (response.success) {
+      if (response.success && response.url) {
         setIsProcessing(false);
         setIsSuccess(true);
         
-        // Call success callback after showing the checkmark
+        // Redirect the user to the Stripe Checkout / mock success redirect URL
         setTimeout(() => {
-          onPaymentSuccess();
-          setIsSuccess(false);
-          onClose();
-        }, 1500);
+          window.location.href = response.url;
+        }, 1200);
       } else {
         throw new Error(response.message || 'Payment failed');
       }

@@ -362,6 +362,7 @@ export interface Package {
   destinationLat?: number;
   destinationLng?: number;
   matches?: Match[];
+  transactions?: any[];
   deliveryPin?: string;
   deliveredAt?: string;
   createdAt: string;

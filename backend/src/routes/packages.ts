@@ -216,6 +216,15 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       where: { id: req.params.id },
       include: {
         user: { select: { id: true, firstName: true, lastName: true, avatar: true, rating: true, trustScore: true } },
+        transactions: {
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            amount: true,
+            createdAt: true,
+          }
+        },
         matches: {
           where: { isRejected: false },
           include: {

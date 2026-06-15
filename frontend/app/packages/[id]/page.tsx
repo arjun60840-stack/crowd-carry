@@ -61,6 +61,14 @@ export default function PackageDetailPage() {
       .then(res => {
         setPkg(res.data);
         setMatches(res.data.matches || []);
+        
+        // Check database transactions to see if escrow is funded
+        const hasEscrowTransaction = res.data.transactions?.some(
+          (t: any) => t.type === 'escrow_hold' && t.status === 'completed'
+        );
+        if (hasEscrowTransaction) {
+          setIsEscrowFunded(true);
+        }
       })
       .catch(console.error)
       .finally(() => setIsLoading(false));
