@@ -269,6 +269,13 @@ class ApiClient {
     return this.request('/api/users/verify-email', { method: 'POST' });
   }
 
+  async verifyEmailWithToken(token: string) {
+    return this.request<{ success: boolean; message: string }>('/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
+
   async verifyPhone() {
     return this.request('/api/users/verify-phone', { method: 'POST' });
   }

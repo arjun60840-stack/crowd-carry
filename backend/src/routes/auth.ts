@@ -7,6 +7,8 @@ import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { calculateTrustScore } from '../engines/trustEngine';
 import { calculateUserRisk } from '../engines/riskEngine';
+import { sendEmail } from '../utils/mailer';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -81,6 +83,21 @@ router.post('/register', registerValidation, async (req: Request, res: Response)
         message: `Hi ${user.firstName}! Welcome to the Crowd Carry platform. Start by verifying your email and setting up your profile.`,
       },
     });
+
+    // Send verification email (non-blocking)
+    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/verify-email?token=${emailVerifyToken}`;
+    sendEmail(
+      user.email,
+      'Welcome to Crowd Carry - Verify Your Email! 📧',
+      `<h1>Welcome to Crowd Carry! 🎉</h1>
+       <p>Hi ${user.firstName},</p>
+       <p>Thank you for registering. Please verify your email by clicking the link below:</p>
+       <p><a href="${verificationUrl}" style="padding: 10px 20px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email</a></p>
+       <p>Or copy and paste this link in your browser:</p>
+       <p>${verificationUrl}</p>
+       <br>
+       <p>Best regards,<br>The Crowd Carry Team</p>`
+    ).catch(err => logger.error('Failed to send registration email', err));
 
     res.status(201).json({
       success: true,
@@ -162,8 +179,23 @@ router.post('/forgot-password',
         },
       });
 
-      // In production, send email here
-      // For now, return token in dev mode
+      // Send password reset email
+      const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}`;
+      sendEmail(
+        user.email,
+        'Reset Your Password - Crowd Carry 🔑',
+        `<h1>Password Reset Request</h1>
+         <p>Hi ${user.firstName},</p>
+         <p>We received a request to reset your password. Click the link below to set a new password:</p>
+         <p><a href="${resetUrl}" style="padding: 10px 20px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a></p>
+         <p>Or copy and paste this link in your browser:</p>
+         <p>${resetUrl}</p>
+         <p>This link will expire in 1 hour.</p>
+         <p>If you did not request this, please ignore this email.</p>
+         <br>
+         <p>Best regards,<br>The Crowd Carry Team</p>`
+      ).catch(err => logger.error('Failed to send password reset email', err));
+
       const response: any = { success: true, message: 'Password reset link sent to your email.' };
       if (process.env.NODE_ENV === 'development') {
         response.resetToken = resetToken; // Only in dev!
