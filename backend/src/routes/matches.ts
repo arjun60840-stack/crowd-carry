@@ -168,7 +168,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promis
   }
 });
 
-// POST /api/matches/:id/accept - Traveler accepts a match
+// POST /api/matches/:id/accept - Accept a match
 router.post('/:id/accept', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const match = await prisma.match.findUnique({
@@ -177,7 +177,10 @@ router.post('/:id/accept', authenticate, async (req: AuthRequest, res: Response)
     });
 
     if (!match) { res.status(404).json({ success: false, message: 'Match not found' }); return; }
-    if (match.travelerId !== req.user!.id) { res.status(403).json({ success: false, message: 'Not authorized' }); return; }
+    if (match.senderId !== req.user!.id && match.travelerId !== req.user!.id && req.user!.role !== 'ADMIN') { 
+      res.status(403).json({ success: false, message: 'Not authorized' }); 
+      return; 
+    }
 
     const updated = await prisma.match.update({
       where: { id: req.params.id },
@@ -196,13 +199,21 @@ router.post('/:id/accept', authenticate, async (req: AuthRequest, res: Response)
       },
     });
 
-    // Notify sender
+    // Notify the other party (sender or traveler)
+    const recipientId = match.senderId === req.user!.id ? match.travelerId : match.senderId;
+    const notificationTitle = match.senderId === req.user!.id 
+      ? 'A sender accepted your trip match! 🎉'
+      : 'Your Package Was Accepted! 🎉';
+    const notificationMessage = match.senderId === req.user!.id
+      ? `A sender has accepted your trip to deliver their package from ${match.package.pickupCity} to ${match.package.destinationCity}.`
+      : `A traveler has accepted your package delivery request. They will pick it up soon.`;
+
     await prisma.notification.create({
       data: {
-        userId: match.senderId,
+        userId: recipientId,
         type: 'PACKAGE_ACCEPTED',
-        title: 'Your Package Was Accepted! 🎉',
-        message: `A traveler has accepted your package delivery request. They will pick it up soon.`,
+        title: notificationTitle,
+        message: notificationMessage,
         data: JSON.stringify({ matchId: match.id, packageId: match.packageId }),
       },
     });
@@ -213,12 +224,12 @@ router.post('/:id/accept', authenticate, async (req: AuthRequest, res: Response)
   }
 });
 
-// POST /api/matches/:id/reject - Traveler rejects a match
+// POST /api/matches/:id/reject - Reject a match
 router.post('/:id/reject', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const match = await prisma.match.findUnique({ where: { id: req.params.id } });
     if (!match) { res.status(404).json({ success: false, message: 'Match not found' }); return; }
-    if (match.travelerId !== req.user!.id && req.user!.role !== 'ADMIN') {
+    if (match.senderId !== req.user!.id && match.travelerId !== req.user!.id && req.user!.role !== 'ADMIN') {
       res.status(403).json({ success: false, message: 'Not authorized' }); return;
     }
 
