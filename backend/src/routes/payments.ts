@@ -14,7 +14,7 @@ const stripe = process.env.STRIPE_SECRET_KEY
 
 // POST /api/payments/create-checkout
 router.post('/create-checkout', authenticate, [
-  body('packageId').isUUID().withMessage('Invalid package ID format')
+  body('packageId').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format')
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {

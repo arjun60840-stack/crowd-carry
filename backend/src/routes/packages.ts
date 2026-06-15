@@ -215,7 +215,7 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
 
 // GET /api/packages/:id
 router.get('/:id', [
-  param('id').isUUID().withMessage('Invalid package ID format')
+  param('id').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format')
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -257,7 +257,7 @@ router.get('/:id', [
 
 // PUT /api/packages/:id
 router.put('/:id', authenticate, [
-  param('id').isUUID().withMessage('Invalid package ID format')
+  param('id').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format')
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -351,7 +351,7 @@ router.put('/:id', authenticate, [
 
 // DELETE /api/packages/:id
 router.delete('/:id', authenticate, [
-  param('id').isUUID().withMessage('Invalid package ID format')
+  param('id').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format')
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -374,7 +374,7 @@ router.delete('/:id', authenticate, [
 
 // GET /api/packages/:id/pricing
 router.get('/:id/pricing', [
-  param('id').isUUID().withMessage('Invalid package ID format')
+  param('id').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format')
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -402,7 +402,7 @@ router.get('/:id/pricing', [
 
 // POST /api/packages/:id/deliver
 router.post('/:id/deliver', authenticate, [
-  param('id').isUUID().withMessage('Invalid package ID format'),
+  param('id').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format'),
   body('pin').trim().notEmpty().withMessage('Delivery PIN is required')
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
