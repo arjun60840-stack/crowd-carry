@@ -49,6 +49,7 @@ model User {
   passwordResetToken  String?
   passwordResetExpiry DateTime?
   emailVerifyToken    String?
+  emailVerifyExpiry   DateTime?
   
   // Timestamps
   createdAt         DateTime  @default(now())

@@ -269,10 +269,11 @@ class ApiClient {
     return this.request('/api/users/verify-email', { method: 'POST' });
   }
 
-  async verifyEmailWithToken(token: string) {
+  async verifyEmailWithToken(token: string, signal?: AbortSignal) {
     return this.request<{ success: boolean; message: string }>('/api/auth/verify-email', {
       method: 'POST',
       body: JSON.stringify({ token }),
+      signal,
     });
   }
 

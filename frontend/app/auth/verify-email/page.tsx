@@ -17,21 +17,31 @@ function VerifyEmailForm() {
 
   useEffect(() => {
     const performVerification = async () => {
-      if (!token) {
-        setError('Missing verification token. Please check the link from your email.');
+      // Validate that it matches standard UUIDv4 format
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!token || !UUID_REGEX.test(token)) {
+        setError('Invalid verification link or token format. Please use the exact link sent to your email.');
         setIsLoading(false);
         return;
       }
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
+
       try {
-        await api.verifyEmailWithToken(token);
+        await api.verifyEmailWithToken(token, controller.signal);
         setIsSuccess(true);
         setTimeout(() => {
           router.push('/auth/login');
         }, 3000);
       } catch (err: any) {
-        setError(err.message || 'Failed to verify email. The verification link might be expired or invalid.');
+        if (err.name === 'AbortError' || err.message === 'canceled') {
+          setError('Verification request timed out. Please refresh the page to try again.');
+        } else {
+          setError(err.message || 'Failed to verify email. The verification link might be expired or invalid.');
+        }
       } finally {
+        clearTimeout(timeoutId);
         setIsLoading(false);
       }
     };
