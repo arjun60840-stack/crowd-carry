@@ -1,6 +1,7 @@
 import express, { Response } from 'express';
 import Stripe from 'stripe';
 import { PrismaClient } from '@prisma/client';
+import { body, validationResult } from 'express-validator';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 
@@ -12,14 +13,16 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 
 // POST /api/payments/create-checkout
-router.post('/create-checkout', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post('/create-checkout', authenticate, [
+  body('packageId').isUUID().withMessage('Invalid package ID format')
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return;
+  }
   try {
     const { packageId } = req.body;
-
-    if (!packageId) {
-      res.status(400).json({ success: false, message: 'Package ID required' });
-      return;
-    }
 
     const pkg = await prisma.package.findUnique({
       where: { id: packageId },
@@ -37,6 +40,12 @@ router.post('/create-checkout', authenticate, async (req: AuthRequest, res: Resp
 
     // Amount in cents (INR or USD)
     const amountInCents = Math.round(pkg.rewardAmount * 100);
+
+    if (process.env.NODE_ENV === 'production' && !stripe) {
+      logger.error('Production Stripe configuration missing. Rejecting payment request.');
+      res.status(503).json({ success: false, message: 'Stripe payments are currently unavailable.' });
+      return;
+    }
 
     if (stripe) {
       // Real Stripe Checkout
@@ -66,26 +75,30 @@ router.post('/create-checkout', authenticate, async (req: AuthRequest, res: Resp
 
       res.json({ success: true, url: session.url });
     } else {
-      // Mock Escrow Mode if no Stripe key is found
+      // Mock Escrow Mode if no Stripe key is found (and not in production)
       logger.info('Stripe key missing. Using Mock Escrow flow.');
       
-      // Instantly mark as escrow funded (simulate webhook)
-      await prisma.package.update({
-        where: { id: pkg.id },
-        data: { status: 'ESCROW_FUNDED' }, // Wait, our schema might not have ESCROW_FUNDED, let's just use ACCEPTED but add a flag or note it. 
-        // Actually we can keep status as ACCEPTED but create a transaction.
-      });
+      await prisma.$transaction(async (tx) => {
+        await tx.package.update({
+          where: { id: pkg.id },
+          data: { 
+            status: 'ESCROW_FUNDED',
+            escrowStatus: 'FUNDED',
+            paymentStatus: 'PAID'
+          },
+        });
 
-      await prisma.transaction.create({
-        data: {
-          userId: req.user!.id,
-          packageId: pkg.id,
-          type: 'escrow_hold',
-          amount: pkg.rewardAmount,
-          currency: 'INR',
-          status: 'completed',
-          description: 'Mock Escrow Funding',
-        }
+        await tx.transaction.create({
+          data: {
+            userId: req.user!.id,
+            packageId: pkg.id,
+            type: 'escrow_hold',
+            amount: pkg.rewardAmount,
+            currency: 'INR',
+            status: 'completed',
+            description: 'Mock Escrow Funding',
+          }
+        });
       });
 
       res.json({ success: true, url: `${process.env.FRONTEND_URL}/packages/${pkg.id}?payment=success` });
@@ -121,19 +134,36 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: e
     const userId = session.metadata?.userId;
 
     if (packageId && userId) {
-      // Create transaction record
-      await prisma.transaction.create({
-        data: {
-          userId,
-          packageId,
-          type: 'escrow_hold',
-          amount: (session.amount_total || 0) / 100,
-          currency: session.currency || 'INR',
-          status: 'completed',
-          description: 'Stripe Escrow Funding',
-        }
-      });
-      logger.info(`Escrow funded successfully for package ${packageId}`);
+      try {
+        // Create transaction record and update package statuses atomically
+        await prisma.$transaction(async (tx) => {
+          await tx.package.update({
+            where: { id: packageId },
+            data: {
+              status: 'ESCROW_FUNDED',
+              escrowStatus: 'FUNDED',
+              paymentStatus: 'PAID'
+            }
+          });
+
+          await tx.transaction.create({
+            data: {
+              userId,
+              packageId,
+              type: 'escrow_hold',
+              amount: (session.amount_total || 0) / 100,
+              currency: session.currency || 'INR',
+              status: 'completed',
+              description: 'Stripe Escrow Funding',
+            }
+          });
+        });
+        logger.info(`Escrow funded successfully for package ${packageId}`);
+      } catch (dbError) {
+        logger.error(`Failed database transaction for package ${packageId}:`, dbError);
+        res.status(500).send('Database transaction failed');
+        return;
+      }
     }
   }
 

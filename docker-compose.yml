@@ -6,9 +6,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: crowdcarry
-      POSTGRES_PASSWORD: crowdcarry_secret
-      POSTGRES_DB: crowdcarry
+      POSTGRES_USER: ${DB_USER:-crowdcarry}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-crowdcarry_secret}
+      POSTGRES_DB: ${DB_NAME:-crowdcarry}
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -22,10 +22,10 @@ services:
     depends_on:
       - db
     environment:
-      DATABASE_URL: postgresql://crowdcarry:crowdcarry_secret@db:5432/crowdcarry
-      JWT_SECRET: change_me_in_production
+      DATABASE_URL: postgresql://${DB_USER:-crowdcarry}:${DB_PASSWORD:-crowdcarry_secret}@db:5432/${DB_NAME:-crowdcarry}
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
       PORT: "5000"
-      FRONTEND_URL: http://localhost:3000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     restart: unless-stopped
 
   frontend:

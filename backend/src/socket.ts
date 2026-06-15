@@ -7,13 +7,21 @@ const prisma = new PrismaClient();
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
+  disconnectTimeout?: NodeJS.Timeout;
 }
 
 // Verify JWT token from socket auth
-const verifySocketToken = (token: string): string | null => {
+const verifySocketToken = (token: string): { userId: string; exp?: number } | null => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret') as any;
-    return decoded.userId || decoded.id;
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      logger.error('JWT_SECRET environment variable is missing.');
+      return null;
+    }
+    const decoded = jwt.verify(token, secret) as any;
+    const userId = decoded.userId || decoded.id;
+    if (!userId) return null;
+    return { userId, exp: decoded.exp };
   } catch {
     return null;
   }
@@ -46,13 +54,27 @@ export const setupSocket = (io: Server) => {
       return next(new Error('Authentication required'));
     }
 
-    const userId = verifySocketToken(token);
-    if (!userId) {
+    const payload = verifySocketToken(token);
+    if (!payload) {
       logger.warn(`Socket connection rejected: invalid token (${socket.id})`);
       return next(new Error('Invalid authentication token'));
     }
 
-    socket.userId = userId;
+    socket.userId = payload.userId;
+
+    if (payload.exp) {
+      const remainingTimeMs = payload.exp * 1000 - Date.now();
+      if (remainingTimeMs <= 0) {
+        logger.warn(`Socket connection rejected: token expired (${socket.id})`);
+        return next(new Error('Authentication token expired'));
+      }
+
+      socket.disconnectTimeout = setTimeout(() => {
+        logger.info(`Disconnecting socket ${socket.id} due to token expiration`);
+        socket.disconnect(true);
+      }, remainingTimeMs);
+    }
+
     next();
   });
 
@@ -135,6 +157,9 @@ export const setupSocket = (io: Server) => {
     });
 
     socket.on('disconnect', () => {
+      if (socket.disconnectTimeout) {
+        clearTimeout(socket.disconnectTimeout);
+      }
       logger.info(`User ${socket.userId} disconnected (socket: ${socket.id})`);
     });
   });

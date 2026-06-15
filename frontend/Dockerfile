@@ -4,10 +4,13 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+RUN chown -R node:node /app
+USER node
+
+COPY --chown=node:node package*.json ./
 RUN npm ci
 
-COPY . .
+COPY --chown=node:node . .
 RUN npm run build
 
 # Stage 2: Production runner
@@ -17,10 +20,13 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+RUN chown -R node:node /app
+USER node
+
 # Copy standalone server and static assets from builder
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/public ./public
 
 EXPOSE 3000
 

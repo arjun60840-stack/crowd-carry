@@ -30,10 +30,14 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map(origin => origin.trim().replace(/\/$/, ''));
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   }
@@ -49,7 +53,15 @@ app.use(helmet({
 
 // CORS
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      logger.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -64,6 +76,23 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api/', limiter);
+
+// Target Route Rate Limiting
+const checkoutLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 3,
+  message: { success: false, message: 'Too many checkout creation requests. Please try again in a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const matchSearchLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  message: { success: false, message: 'Too many match search attempts. Please try again in a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Auth-specific stricter rate limit
 const authLimiter = rateLimit({
@@ -89,12 +118,14 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/packages', packageRoutes);
+app.use('/api/matches/package/:packageId', matchSearchLimiter);
 app.use('/api/matches', matchRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/sustainability', sustainabilityRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/payments/create-checkout', checkoutLimiter);
 app.use('/api/payments', paymentRoutes);
 
 // Health check
@@ -114,6 +145,21 @@ app.use('*', (req, res) => {
 
 // Error handler
 app.use(errorHandler);
+
+// Fail-Fast Environment checks
+const requiredEnv = ['DATABASE_URL', 'JWT_SECRET', 'FRONTEND_URL'];
+const missingEnv = requiredEnv.filter(envName => !process.env[envName]);
+
+if (missingEnv.length > 0) {
+  logger.error(`Critical error: Missing required environment variables: ${missingEnv.join(', ')}`);
+  process.exit(1);
+}
+
+const jwtSecret = process.env.JWT_SECRET || '';
+if (jwtSecret.length < 32) {
+  logger.error('Critical error: JWT_SECRET must be at least 32 characters long for security compliance.');
+  process.exit(1);
+}
 
 server.listen(PORT, () => {
   logger.info(`🚀 Crowd Carry API running on port ${PORT}`);

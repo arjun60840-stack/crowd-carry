@@ -3,16 +3,21 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Change ownership of /app to node user
+RUN chown -R node:node /app
+
+USER node
+
 # Install dependencies first (leverages Docker layer caching)
-COPY package*.json ./
-RUN npm ci --only=production
+COPY --chown=node:node package*.json ./
+RUN npm ci
 
 # Generate Prisma client
-COPY prisma ./prisma
+COPY --chown=node:node prisma ./prisma
 RUN npx prisma generate
 
 # Copy source and build
-COPY . .
+COPY --chown=node:node . .
 RUN npm run build
 
 EXPOSE 5000

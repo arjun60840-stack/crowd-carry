@@ -68,6 +68,8 @@ model User {
   transactions      Transaction[]
   messagesSent      Message[] @relation("SentMessages")
   
+  @@index([role])
+  @@index([createdAt])
   @@map("users")
 }
 
@@ -106,6 +108,8 @@ model Trip {
   // Relations
   matches           Match[]
   
+  @@index([isActive, isCompleted, travelDate])
+  @@index([sourceCity, destinationCity])
   @@map("trips")
 }
 
@@ -140,6 +144,8 @@ model Package {
   suggestedPremium  Float?
   
   status            String          @default("PENDING")
+  escrowStatus      String          @default("UNFUNDED")
+  paymentStatus     String          @default("PENDING")
   imageUrls         String          @default("[]") // JSON stringified array
   
   // Insurance
@@ -168,6 +174,9 @@ model Package {
   reviews           Review[]
   transactions      Transaction[]
   
+  @@index([userId])
+  @@index([status])
+  @@index([pickupCity, destinationCity])
   @@map("packages")
 }
 
@@ -203,6 +212,9 @@ model Match {
   
   messages          Message[]
   
+  @@index([packageId])
+  @@index([tripId])
+  @@index([travelerId])
   @@unique([packageId, tripId])
   @@map("matches")
 }

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { body, validationResult } from 'express-validator';
+import { body, param, validationResult } from 'express-validator';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -40,13 +40,17 @@ router.post('/', authenticate, upload.array('images', 5), [
   body('title').trim().notEmpty().withMessage('Title required'),
   body('pickupAddress').trim().notEmpty(),
   body('pickupCity').trim().notEmpty(),
+  body('pickupLat').optional({ checkFalsy: true }).isFloat({ min: -90, max: 90 }).withMessage('Pickup latitude must be between -90 and 90'),
+  body('pickupLng').optional({ checkFalsy: true }).isFloat({ min: -180, max: 180 }).withMessage('Pickup longitude must be between -180 and 180'),
   body('destinationAddress').trim().notEmpty(),
   body('destinationCity').trim().notEmpty(),
+  body('destinationLat').optional({ checkFalsy: true }).isFloat({ min: -90, max: 90 }).withMessage('Destination latitude must be between -90 and 90'),
+  body('destinationLng').optional({ checkFalsy: true }).isFloat({ min: -180, max: 180 }).withMessage('Destination longitude must be between -180 and 180'),
   body('weight').isFloat({ min: 0.01 }).withMessage('Weight must be positive'),
   body('size').isIn(['SMALL', 'MEDIUM', 'LARGE', 'EXTRA_LARGE']),
   body('category').isIn(['DOCUMENTS', 'ELECTRONICS', 'CLOTHING', 'FOOD', 'MEDICINE', 'BOOKS', 'ACCESSORIES', 'OTHER']),
   body('urgency').isIn(['STANDARD', 'EXPRESS', 'URGENT']),
-  body('rewardAmount').isFloat({ min: 1 }).withMessage('Reward must be at least ₹1'),
+  body('rewardAmount').isFloat({ min: 5, max: 50000 }).withMessage('Reward must be between 5 and 50000'),
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -210,7 +214,14 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 // GET /api/packages/:id
-router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/:id', [
+  param('id').isUUID().withMessage('Invalid package ID format')
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return;
+  }
   try {
     const pkg = await prisma.package.findUnique({
       where: { id: req.params.id },
@@ -245,7 +256,14 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 // PUT /api/packages/:id
-router.put('/:id', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put('/:id', authenticate, [
+  param('id').isUUID().withMessage('Invalid package ID format')
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return;
+  }
   try {
     const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
@@ -332,7 +350,14 @@ router.put('/:id', authenticate, async (req: AuthRequest, res: Response): Promis
 });
 
 // DELETE /api/packages/:id
-router.delete('/:id', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete('/:id', authenticate, [
+  param('id').isUUID().withMessage('Invalid package ID format')
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return;
+  }
   try {
     const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
@@ -348,7 +373,14 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response): Pro
 });
 
 // GET /api/packages/:id/pricing
-router.get('/:id/pricing', async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/:id/pricing', [
+  param('id').isUUID().withMessage('Invalid package ID format')
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return;
+  }
   try {
     const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
@@ -369,14 +401,17 @@ router.get('/:id/pricing', async (req: AuthRequest, res: Response): Promise<void
 });
 
 // POST /api/packages/:id/deliver
-router.post('/:id/deliver', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post('/:id/deliver', authenticate, [
+  param('id').isUUID().withMessage('Invalid package ID format'),
+  body('pin').trim().notEmpty().withMessage('Delivery PIN is required')
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return;
+  }
   try {
     const { pin } = req.body;
-    
-    if (!pin) {
-      res.status(400).json({ success: false, message: 'Delivery PIN is required' });
-      return;
-    }
 
     const pkg = await prisma.package.findUnique({
       where: { id: req.params.id },
