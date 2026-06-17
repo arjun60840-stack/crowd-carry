@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Run SMTP credentials checks on startup
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production' && process.env.BYPASS_SMTP_VERIFY !== 'true') {
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
   if (!smtpUser || smtpUser === 'your-email@gmail.com' || smtpUser === '') {
@@ -29,9 +29,11 @@ if (process.env.NODE_ENV === 'production') {
 transporter.verify((error, success) => {
   if (error) {
     logger.error('❌ SMTP connection check failed on startup:', error.message);
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && process.env.BYPASS_SMTP_VERIFY !== 'true') {
       logger.error('CRITICAL: Failing startup due to broken SMTP connection in production.');
       process.exit(1);
+    } else {
+      logger.warn('SMTP connection verify failed, continuing in bypass/simulation mode.');
     }
   } else {
     logger.info('✅ SMTP connection verified successfully and ready to send emails');
