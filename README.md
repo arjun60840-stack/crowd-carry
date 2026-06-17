@@ -14,6 +14,7 @@
 *   **Frontend Web App:** [https://crowd-carry-5iz3.vercel.app](https://crowd-carry-5iz3.vercel.app)
 *   **Backend Server API:** [https://crowd-carry.onrender.com](https://crowd-carry.onrender.com)
 *   **Database Host:** PostgreSQL on Supabase Cloud
+*   **Redis Caching:** Auto In-Memory Cache Fallback enabled
 
 ---
 
@@ -38,6 +39,8 @@ graph TD
     subgraph Client ["Frontend Client (Next.js 14)"]
         UI["Glassmorphic UI / Dashboard"]
         SocketClient["Socket.io Client (Real-Time Chat & GPS)"]
+        KYCPanel["KYC & Verification Hub"]
+        Scanner["QR Scan Simulator & Timeline"]
     end
 
     subgraph API ["Backend API Server (Express + Node.js)"]
@@ -45,6 +48,7 @@ graph TD
         SocketServer["Socket.io WebSocket Server"]
         Engines["Algorithms Engine (Pricing, Trust, Risk)"]
         Mailer["SMTP Nodemailer Client (Retries & Backoff)"]
+        Cache["Redis Cache Manager (Local Memory Fallback)"]
     end
 
     subgraph Storage ["Database Cluster"]
@@ -63,6 +67,7 @@ graph TD
     Prisma <--> DB
     Engines --> Prisma
     Routes --> Engines
+    Routes --> Cache
     Mailer -->|Real SMTP Emails| SMTP
     Routes --> Mailer
     Routes -->|Atomic Escrow Transactions| Stripe
@@ -78,7 +83,7 @@ graph TD
 
 ### 2. Secure Escrow & Payments Flow
 *   Powered by Stripe integration. Payments are collected atomically and locked into escrow during matching.
-*   Payouts are released to carriers only when they input the correct **4-digit Delivery PIN** provided securely by the package receiver.
+*   Payouts are released to carriers only when they input the correct **4-digit Delivery PIN** provided securely by the package receiver, or complete a validated QR code scan.
 *   Built with database transaction blocks (`prisma.$transaction`) to guarantee atomic financial record updates.
 
 ### 3. Real-Time Tracking & Live Map
@@ -89,25 +94,32 @@ graph TD
 *   Integrated, encrypted real-time direct messages allowing senders and carriers to coordinate meeting locations.
 *   Sessions automatically disconnect matching the user's JWT expiration.
 
-### 5. Verified Trust & Safety Engine
-*   Integrates KYC document verification state check.
-*   Uses proprietary risk/trust scoring logic analyzing past user behavior, ratings, successful deliveries, and activity status to flag malicious accounts.
+### 5. Verified Trust & Safety System
+*   **Multi-Level KYC Hub**: Tracks user verification level from 0 (Email) to 4 (Trusted Carrier status approved by Admin) with government ID uploads and selfies.
+*   **Auto-Approve (Demo Mode)**: To facilitate rapid testing during evaluation, users with a `PENDING` status can bypass Admin review by clicking the **Auto-Approve Documents** button inside the KYC page to instantly verify their credentials.
+*   **Dynamic Trust Scoring Engine**: Automatically computes reputations (0-100) using positive multipliers (deliveries, ratings, KYC tiers, account age) and negative penalties (active disputes, carrier fault incidents, policy violations).
+*   **QR Scanner Timeline**: Displays package transit milestones (Created -> Matched -> Picked Up -> In Transit -> Delivered) along with a simulated QR scanning drawer that pre-populates scan coordinates.
+*   **Disputes & Claims**: Built-in modals allowing users to file package disputes (holding escrow payouts) or submit insurance claims with evidence image uploads.
 
 ### 6. Environmental Impact Dashboard
 *   Computes and displays CO₂ offsets saved by utilizing an existing traveler's vehicle route instead of deploying dedicated cargo couriers.
 
 ---
 
+## ⚡ Redis Caching Layer
+
+*   Implemented Redis caching on high-frequency routes like `/profile` and `/packages/:id` to speed up page loads.
+*   **Fail-Safe Architecture**: If Redis is not configured or offline, the app transparently and cleanly falls back to using an in-memory local `Map` cache. It skips connection attempts to prevent console warning logs (`ECONNREFUSED`) or startup delays.
+
+---
+
 ## 🛡️ Production & Security Hardening
 
 To satisfy strict enterprise security audit requirements, we implemented the following hardening checklist:
-*   **Startup Verification Fail-Safe**: The API performs Nodemailer validation on startup. If SMTP settings are broken or credentials are not defined in production, the server fails-fast (`process.exit(1)`) to prevent silent failures.
+*   **SMTP Startup Verification Bypass**: nodemailers' startup connection check can be bypassed in demo builds using `BYPASS_SMTP_VERIFY=true` to prevent container crashes on Render.
 *   **Strict Parameter Sanitization**: Utilizes `express-validator` to reject malformed UUIDs, invalid coordinates, or invalid monetary rewards.
 *   **Token Expiration & Limits**: Implements database-tracked verification tokens (`emailVerifyExpiry`) expiring in 24 hours.
-*   **Brute-Force Rate Limiting**: Mounted dedicated limits:
-    *   `/verify-email` (5 requests / 15 minutes)
-    *   `/resend-verification-email` (3 requests / 15 minutes)
-    *   `/create-checkout` (3 requests / 1 minute)
+*   **Brute-Force Rate Limiting**: Dedicated rate limiters are mounted on authentication endpoints, verification retries, and Stripe checkouts.
 *   **Anti-Enumeration Protection**: Routes like `/forgot-password` and `/resend-verification-email` return success messages even if an email does not exist to prevent account enumeration.
 *   **XSS Mitigation**: Encodes user-provided HTML template variables before transmission using dedicated sanitizers.
 *   **Least-Privilege Containers**: Both frontend and backend Dockerfiles are multi-staged and run under the non-privileged `node` user.
@@ -116,8 +128,8 @@ To satisfy strict enterprise security audit requirements, we implemented the fol
 
 ## 🛠️ Tech Stack
 
-*   **Frontend**: Next.js 14 (App Router), React, Tailwind CSS, Leaflet.js, Lucide React, Socket.io-client.
-*   **Backend**: Node.js, Express, Socket.io, Prisma ORM, Nodemailer, Stripe SDK, express-validator, express-rate-limit.
+*   **Frontend**: Next.js 15 (App Router), React, Tailwind CSS, Leaflet.js, Lucide React, Socket.io-client.
+*   **Backend**: Node.js, Express, Socket.io, Prisma ORM, Nodemailer, Stripe SDK, express-validator, express-rate-limit, ioredis.
 *   **Database**: PostgreSQL.
 *   **Testing**: Jest, ts-jest.
 
@@ -156,7 +168,11 @@ JWT_EXPIRES_IN=7d
 # CORS Allowed Origin
 FRONTEND_URL="http://localhost:3000"
 
-# SMTP Nodemailer Settings (Optional: Leave empty for simulated logs)
+# Redis Cache Settings (Optional: Leave empty for simulated memory fallback)
+# REDIS_URL="redis://127.0.0.1:6379"
+
+# SMTP Nodemailer Settings (Optional: Set BYPASS_SMTP_VERIFY=true to skip connection check)
+BYPASS_SMTP_VERIFY=true
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURE=false
