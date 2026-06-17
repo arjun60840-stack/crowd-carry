@@ -128,7 +128,7 @@ To satisfy strict enterprise security audit requirements, we implemented the fol
 
 ## 🛠️ Tech Stack
 
-*   **Frontend**: Next.js 15 (App Router), React, Tailwind CSS, Leaflet.js, Lucide React, Socket.io-client.
+*   **Frontend**: Next.js 16 (App Router), React, Tailwind CSS, Leaflet.js, Lucide React, Socket.io-client.
 *   **Backend**: Node.js, Express, Socket.io, Prisma ORM, Nodemailer, Stripe SDK, express-validator, express-rate-limit, ioredis.
 *   **Database**: PostgreSQL.
 *   **Testing**: Jest, ts-jest.
@@ -138,7 +138,7 @@ To satisfy strict enterprise security audit requirements, we implemented the fol
 ## 🚀 Local Development Setup
 
 ### Prerequisites
-*   Node.js (v18 or higher)
+*   Node.js (v20 or higher)
 *   PostgreSQL Database instance
 
 ### 1. Repository Installation
