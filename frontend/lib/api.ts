@@ -38,7 +38,8 @@ class ApiClient {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'API request failed');
+      const errorMsg = data.message || (data.errors && data.errors[0]?.msg) || 'API request failed';
+      throw new Error(errorMsg);
     }
 
     return data;
@@ -290,6 +291,12 @@ class ApiClient {
     return this.request(`/api/admin/kyc/${userId}/verify`, {
       method: 'PUT',
       body: JSON.stringify({ action, level }),
+    });
+  }
+
+  async autoApproveKyc() {
+    return this.request<{ success: boolean; data: any }>('/api/users/kyc/auto-approve', {
+      method: 'POST',
     });
   }
 

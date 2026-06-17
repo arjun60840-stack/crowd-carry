@@ -242,7 +242,7 @@ export default function PackageDetailPage() {
               <button
                 onClick={() => {
                   setQrScanType('PICKUP');
-                  setQrPayloadInput(pkg.qrCodeData || '');
+                  setQrPayloadInput(pkg.qrCodeData || ('cc-package-qr:' + pkg.id));
                   setIsQrModalOpen(true);
                 }}
                 className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
@@ -488,13 +488,13 @@ export default function PackageDetailPage() {
           </div>
 
           {/* QR Code Display for Senders */}
-          {isOwner && pkg.qrCodeData && (
+          {isOwner && (pkg.qrCodeData || pkg.id) && (
             <div className="glass-card p-6 text-center space-y-4 border-dashed border-white/10">
               <h3 className="font-bold font-syne text-sm">Package QR Identity Code</h3>
               <div className="w-36 h-36 bg-white rounded-xl mx-auto flex items-center justify-center p-3">
                 {/* SVG mock QR representation */}
                 <div className="w-full h-full border border-black p-1 flex items-center justify-center bg-black text-white font-mono text-[9px] break-all leading-tight">
-                  {pkg.qrCodeData}
+                  {pkg.qrCodeData || (`cc-package-qr:${pkg.id}`)}
                 </div>
               </div>
               <p className="text-xs text-gray-400">Carriers scan this code on pickup and dropoff.</p>

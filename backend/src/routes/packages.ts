@@ -373,7 +373,8 @@ router.post('/:id/scan', authenticate, [
     }
 
     // Verify QR code payload matching
-    if (pkg.qrCodeData !== qrPayload) {
+    const expectedQr = pkg.qrCodeData || `cc-package-qr:${pkg.id}`;
+    if (expectedQr !== qrPayload) {
       res.status(400).json({ success: false, message: 'Invalid QR payload. QR Code verification failed.' });
       return;
     }

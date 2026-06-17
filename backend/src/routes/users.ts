@@ -333,6 +333,31 @@ router.post('/kyc/submit', authenticate, upload.single('selfie'), [
   }
 });
 
+// POST /api/users/kyc/auto-approve
+router.post('/kyc/auto-approve', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  const userId = req.user!.id;
+  try {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'APPROVED',
+        verificationLevel: 3,
+        verifiedBadge: true,
+        verificationDate: new Date(),
+      },
+      select: {
+        id: true, kycStatus: true, verificationLevel: true, verifiedBadge: true,
+      }
+    });
+
+    await recalculateAndSaveTrustScore(userId);
+    res.json({ success: true, message: 'KYC auto-approved successfully for testing.', data: user });
+  } catch (error) {
+    logger.error('Failed to auto-approve KYC:', error);
+    res.status(500).json({ success: false, message: 'Failed to auto-approve KYC' });
+  }
+});
+
 // GET /api/users/kyc/status
 router.get('/kyc/status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {

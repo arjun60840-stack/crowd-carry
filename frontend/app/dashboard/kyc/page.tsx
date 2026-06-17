@@ -25,6 +25,7 @@ export default function DashboardKycPage() {
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [isAutoApproving, setIsAutoApproving] = useState(false);
 
   const fetchKycStatus = async () => {
     try {
@@ -81,6 +82,20 @@ export default function DashboardKycPage() {
       setStatusMessage(`❌ Error: ${err.message || 'Submission failed'}`);
     } finally {
       setIsSubmittingKyc(false);
+    }
+  };
+
+  const handleAutoApproveKyc = async () => {
+    setIsAutoApproving(true);
+    try {
+      await api.autoApproveKyc();
+      alert('KYC successfully approved in demo mode!');
+      await refreshUser();
+      fetchKycStatus();
+    } catch (err: any) {
+      alert(err.message || 'Auto-approval failed');
+    } finally {
+      setIsAutoApproving(false);
     }
   };
 
@@ -200,11 +215,24 @@ export default function DashboardKycPage() {
               </div>
             </div>
           ) : kycData?.kycStatus === 'PENDING' ? (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3">
-              <Loader2 className="w-5 h-5 text-amber-400 shrink-0 animate-spin" />
-              <div>
-                <div className="text-sm font-bold text-amber-400">KYC Status: PENDING</div>
-                <div className="text-xs text-gray-400">Admins are currently reviewing your documents.</div>
+            <div className="space-y-4">
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3">
+                <Loader2 className="w-5 h-5 text-amber-400 shrink-0 animate-spin" />
+                <div>
+                  <div className="text-sm font-bold text-amber-400">KYC Status: PENDING</div>
+                  <div className="text-xs text-gray-400">Admins are currently reviewing your documents.</div>
+                </div>
+              </div>
+              <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-2 text-left">
+                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Demo Mode Helper</h4>
+                <p className="text-[11px] text-gray-400">You can simulate admin review approval directly for testing.</p>
+                <button
+                  onClick={handleAutoApproveKyc}
+                  disabled={isAutoApproving}
+                  className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {isAutoApproving ? 'Approving...' : 'Auto-Approve Documents'}
+                </button>
               </div>
             </div>
           ) : (
