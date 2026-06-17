@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Users, Package, DollarSign, ShieldAlert, CheckCircle, Search, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import { format } from 'date-fns';
@@ -81,8 +82,16 @@ export default function AdminDashboard() {
 
       {/* User Management */}
       <div className="glass-card border-white/5 overflow-hidden">
-        <div className="p-6 border-b border-white/5 flex items-center justify-between">
-          <h2 className="text-xl font-bold font-syne">User Management & KYC</h2>
+        <div className="p-6 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold font-syne">User Management & KYC</h2>
+            <Link 
+              href="/admin/kyc" 
+              className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-semibold transition-colors"
+            >
+              KYC & Disputes panel
+            </Link>
+          </div>
           <div className="relative">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input 

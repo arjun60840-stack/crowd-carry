@@ -24,6 +24,8 @@ import adminRoutes from './routes/admin';
 import sustainabilityRoutes from './routes/sustainability';
 import chatRoutes from './routes/chat';
 import paymentRoutes from './routes/payments';
+import disputeRoutes from './routes/disputes';
+import insuranceRoutes from './routes/insurance';
 
 dotenv.config();
 
@@ -128,6 +130,8 @@ app.use('/api/sustainability', sustainabilityRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/payments/create-checkout', checkoutLimiter);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/disputes', disputeRoutes);
+app.use('/api/insurance', insuranceRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

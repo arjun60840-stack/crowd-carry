@@ -1,177 +1,155 @@
 /**
- * Trust Score Engine - Custom Algorithm
- * Calculates a trust score for travelers based on multiple factors
- * Formula: 30% Verification + 30% Deliveries + 20% Rating + 20% Account Age
+ * Trust Score Engine - Custom Hackathon-Grade Algorithm
+ * Calculates a dynamic trust score (0-100) based on positive behaviors and safety violations.
  */
 
-export interface TrustFactors {
-  verificationScore: number;  // 0-100
-  deliveryScore: number;      // 0-100
-  ratingScore: number;        // 0-100
-  accountAgeScore: number;    // 0-100
+export interface UserTrustData {
+  isVerified?: boolean;
+  isEmailVerified?: boolean;
+  isPhoneVerified?: boolean;
+  idDocumentUrl?: string | null;
+  completedDeliveries: number;
+  successRate?: number;
+  rating: number;
+  totalRatings: number;
+  createdAt: Date;
+
+  // KYC Level System
+  verificationLevel?: number;
+
+  // Violations & Adjustments
+  activeDisputesCount?: number;
+  lostDamagedAtFaultCount?: number;
+  failedDeliveriesCount?: number;
+  policyWarningsCount?: number;
+  fakePackageReportsCount?: number;
 }
 
 export interface TrustResult {
   trustScore: number;           // 0-100
-  trustLevel: string;           // "Trusted", "Verified", "Standard", "New"
+  trustLevel: string;           // "Risky", "Average", "Trusted", "Elite"
   badges: string[];             // Array of earned badges
-  breakdown: TrustFactors;
-}
-
-export interface UserTrustData {
-  isVerified: boolean;
-  isEmailVerified: boolean;
-  isPhoneVerified: boolean;
-  idDocumentUrl: string | null;
-  completedDeliveries: number;
-  successRate: number;
-  rating: number;
-  totalRatings: number;
-  createdAt: Date;
+  breakdown: {
+    baseScore: number;
+    deliveriesBonus: number;
+    ratingBonus: number;
+    verificationBonus: number;
+    accountAgeBonus: number;
+    disputesPenalty: number;
+    lostDamagedPenalty: number;
+    failedDeliveriesPenalty: number;
+    policyWarningsPenalty: number;
+    fakeReportsPenalty: number;
+  };
 }
 
 /**
- * Calculate verification score (0-100)
- * Email (30) + Phone (30) + ID Document (40)
+ * Determine trust level label based on score:
+ * - 0-40 = Risky
+ * - 41-70 = Average
+ * - 71-90 = Trusted
+ * - 91-100 = Elite Carrier
  */
-function calculateVerificationScore(user: UserTrustData): number {
-  let score = 0;
-
-  if (user.isEmailVerified) score += 30;
-  if (user.isPhoneVerified) score += 30;
-  if (user.idDocumentUrl) score += 35;
-  if (user.isVerified) score += 5; // Admin-verified bonus
-
-  return Math.min(100, score);
+export function determineTrustLevel(score: number): string {
+  if (score <= 40) return 'Risky';
+  if (score <= 70) return 'Average';
+  if (score <= 90) return 'Trusted';
+  return 'Elite';
 }
 
 /**
- * Calculate delivery score based on completed deliveries and success rate (0-100)
- */
-function calculateDeliveryScore(completedDeliveries: number, successRate: number): number {
-  if (completedDeliveries === 0) return 0;
-
-  // Logarithmic growth: 1=10pts, 5=30pts, 10=50pts, 25=70pts, 50=90pts, 100=100pts
-  const deliveryPoints = Math.min(80, Math.log10(completedDeliveries + 1) * 40);
-
-  // Success rate multiplier
-  const successMultiplier = successRate; // 0-1
-
-  return Math.min(100, deliveryPoints + deliveryPoints * successMultiplier * 0.25);
-}
-
-/**
- * Calculate rating score (0-100)
- */
-function calculateRatingScore(rating: number, totalRatings: number): number {
-  if (totalRatings === 0) return 50; // Neutral for new users
-
-  const baseScore = (rating / 5) * 100;
-
-  // Confidence bonus for many ratings
-  const confidenceBonus = Math.min(10, Math.log10(totalRatings + 1) * 5);
-
-  return Math.min(100, baseScore + confidenceBonus);
-}
-
-/**
- * Calculate account age score (0-100)
- * New accounts start low, build trust over time
- */
-function calculateAccountAgeScore(createdAt: Date): number {
-  const ageInDays = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-
-  if (ageInDays < 7) return 10;      // Less than 1 week
-  if (ageInDays < 30) return 25;     // Less than 1 month
-  if (ageInDays < 90) return 45;     // Less than 3 months
-  if (ageInDays < 180) return 65;    // Less than 6 months
-  if (ageInDays < 365) return 80;    // Less than 1 year
-  if (ageInDays < 730) return 92;    // Less than 2 years
-  return 100;                         // 2+ years
-}
-
-/**
- * Determine badges based on trust data
- */
-function determineBadges(
-  user: UserTrustData,
-  trustScore: number,
-  breakdown: TrustFactors
-): string[] {
-  const badges: string[] = [];
-
-  if (user.isEmailVerified) badges.push('email_verified');
-  if (user.isPhoneVerified) badges.push('phone_verified');
-  if (user.idDocumentUrl) badges.push('id_verified');
-  if (user.isVerified) badges.push('admin_verified');
-
-  if (user.completedDeliveries >= 5) badges.push('active_carrier');
-  if (user.completedDeliveries >= 20) badges.push('experienced_carrier');
-  if (user.completedDeliveries >= 50) badges.push('top_carrier');
-
-  if (user.successRate >= 0.95 && user.completedDeliveries >= 10) {
-    badges.push('reliability_expert');
-  }
-
-  if (user.rating >= 4.8 && user.totalRatings >= 10) {
-    badges.push('highly_rated');
-  }
-
-  if (trustScore >= 80) badges.push('trusted_traveler');
-  if (trustScore >= 90) badges.push('elite_traveler');
-
-  return badges;
-}
-
-/**
- * Determine trust level label
- */
-function determineTrustLevel(trustScore: number, user: UserTrustData): string {
-  if (trustScore >= 85 && user.completedDeliveries >= 20) return 'Elite';
-  if (trustScore >= 70 && user.completedDeliveries >= 5) return 'Trusted';
-  if (user.isEmailVerified && user.isPhoneVerified) return 'Verified';
-  if (user.isEmailVerified) return 'Standard';
-  return 'New';
-}
-
-/**
- * Main trust score calculator
- * Formula: 30% Verification + 30% Deliveries + 20% Rating + 20% Account Age
+ * Calculate dynamic trust score
  */
 export function calculateTrustScore(user: UserTrustData): TrustResult {
-  const verificationScore = calculateVerificationScore(user);
-  const deliveryScore = calculateDeliveryScore(user.completedDeliveries, user.successRate);
-  const ratingScore = calculateRatingScore(user.rating, user.totalRatings);
-  const accountAgeScore = calculateAccountAgeScore(user.createdAt);
+  const baseScore = 100;
 
-  const trustScore =
-    verificationScore * 0.30 +
-    deliveryScore * 0.30 +
-    ratingScore * 0.20 +
-    accountAgeScore * 0.20;
+  // 1. Calculate Increases
+  // Successful Deliveries: +5 points per delivery
+  const deliveriesBonus = user.completedDeliveries * 5;
 
-  const roundedScore = Math.round(trustScore * 10) / 10;
+  // Positive Ratings: +10 if rating >= 4.5, +15 if rating === 5.0
+  let ratingBonus = 0;
+  if (user.totalRatings > 0) {
+    if (user.rating === 5.0) {
+      ratingBonus = 15;
+    } else if (user.rating >= 4.5) {
+      ratingBonus = 10;
+    }
+  }
 
-  const breakdown: TrustFactors = {
-    verificationScore: Math.round(verificationScore),
-    deliveryScore: Math.round(deliveryScore),
-    ratingScore: Math.round(ratingScore),
-    accountAgeScore: Math.round(accountAgeScore),
-  };
+  // Identity Verification Levels
+  // Level 1: +5, Level 2: +15, Level 3: +25, Level 4: +35
+  let level = user.verificationLevel ?? 0;
+  if (user.verificationLevel === undefined) {
+    // Infer level for backwards compatibility
+    if (user.isEmailVerified) level = 0;
+    if (user.isPhoneVerified) level = 1;
+    if (user.idDocumentUrl) level = 2;
+    if (user.isVerified) level = 3;
+  }
 
-  const badges = determineBadges(user, roundedScore, breakdown);
-  const trustLevel = determineTrustLevel(roundedScore, user);
+  let verificationBonus = 0;
+  if (level === 1) verificationBonus = 5;
+  else if (level === 2) verificationBonus = 15;
+  else if (level === 3) verificationBonus = 25;
+  else if (level >= 4) verificationBonus = 35;
+
+  // Account Age: +5 for > 30 days, +10 for > 90 days, +15 for > 180 days
+  const ageInDays = (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  let accountAgeBonus = 0;
+  if (ageInDays > 180) accountAgeBonus = 15;
+  else if (ageInDays > 90) accountAgeBonus = 10;
+  else if (ageInDays > 30) accountAgeBonus = 5;
+
+  // 2. Calculate Decreases (Violations)
+  const disputesPenalty = (user.activeDisputesCount || 0) * 15;
+  const lostDamagedPenalty = (user.lostDamagedAtFaultCount || 0) * 25;
+  const failedDeliveriesPenalty = (user.failedDeliveriesCount || 0) * 20;
+  const policyWarningsPenalty = (user.policyWarningsCount || 0) * 30;
+  const fakeReportsPenalty = (user.fakePackageReportsCount || 0) * 40;
+
+  // Sum calculations
+  const totalIncreases = deliveriesBonus + ratingBonus + verificationBonus + accountAgeBonus;
+  const totalDecreases = disputesPenalty + lostDamagedPenalty + failedDeliveriesPenalty + policyWarningsPenalty + fakeReportsPenalty;
+
+  // Final score: starting at 100, add bonuses, subtract penalties, bound between 0 and 100
+  const trustScore = Math.max(0, Math.min(100, baseScore + totalIncreases - totalDecreases));
+
+  // Determine badges
+  const badges: string[] = [];
+  if (level >= 1) badges.push('phone_verified');
+  if (level >= 2) badges.push('id_verified');
+  if (level >= 3) badges.push('selfie_verified');
+  if (level >= 4) badges.push('trusted_carrier');
+
+  if (user.completedDeliveries >= 1) badges.push('first_delivery');
+  if (user.completedDeliveries >= 10) badges.push('active_carrier');
+  if (user.completedDeliveries >= 50) badges.push('top_carrier');
+  if (trustScore >= 90) badges.push('elite_traveler');
+
+  const trustLevel = determineTrustLevel(trustScore);
 
   return {
-    trustScore: roundedScore,
+    trustScore,
     trustLevel,
     badges,
-    breakdown,
+    breakdown: {
+      baseScore,
+      deliveriesBonus,
+      ratingBonus,
+      verificationBonus,
+      accountAgeBonus,
+      disputesPenalty,
+      lostDamagedPenalty,
+      failedDeliveriesPenalty,
+      policyWarningsPenalty,
+      fakeReportsPenalty,
+    },
   };
 }
 
 /**
- * Quick helper to check if user has specific badges
+ * Quick helper to check badge status
  */
 export function hasBadge(badges: string[], badge: string): boolean {
   return badges.includes(badge);

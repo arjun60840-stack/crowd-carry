@@ -3,11 +3,15 @@ import { body, param, validationResult } from 'express-validator';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { calculatePricing, estimateDistanceFromCities } from '../engines/pricingEngine';
 import { calculatePackageRisk } from '../engines/riskEngine';
 import { calculateDeliverySustainability } from '../engines/sustainabilityEngine';
+import { recalculateAndSaveTrustScore } from './users';
+import { cacheGet, cacheSet, cacheDel } from '../lib/redis';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -40,17 +44,20 @@ router.post('/', authenticate, upload.array('images', 5), [
   body('title').trim().notEmpty().withMessage('Title required'),
   body('pickupAddress').trim().notEmpty(),
   body('pickupCity').trim().notEmpty(),
-  body('pickupLat').optional({ checkFalsy: true }).isFloat({ min: -90, max: 90 }).withMessage('Pickup latitude must be between -90 and 90'),
-  body('pickupLng').optional({ checkFalsy: true }).isFloat({ min: -180, max: 180 }).withMessage('Pickup longitude must be between -180 and 180'),
+  body('pickupLat').optional({ checkFalsy: true }).isFloat({ min: -90, max: 90 }),
+  body('pickupLng').optional({ checkFalsy: true }).isFloat({ min: -180, max: 180 }),
   body('destinationAddress').trim().notEmpty(),
   body('destinationCity').trim().notEmpty(),
-  body('destinationLat').optional({ checkFalsy: true }).isFloat({ min: -90, max: 90 }).withMessage('Destination latitude must be between -90 and 90'),
-  body('destinationLng').optional({ checkFalsy: true }).isFloat({ min: -180, max: 180 }).withMessage('Destination longitude must be between -180 and 180'),
+  body('destinationLat').optional({ checkFalsy: true }).isFloat({ min: -90, max: 90 }),
+  body('destinationLng').optional({ checkFalsy: true }).isFloat({ min: -180, max: 180 }),
   body('weight').isFloat({ min: 0.01 }).withMessage('Weight must be positive'),
   body('size').isIn(['SMALL', 'MEDIUM', 'LARGE', 'EXTRA_LARGE']),
   body('category').isIn(['DOCUMENTS', 'ELECTRONICS', 'CLOTHING', 'FOOD', 'MEDICINE', 'BOOKS', 'ACCESSORIES', 'OTHER']),
   body('urgency').isIn(['STANDARD', 'EXPRESS', 'URGENT']),
   body('rewardAmount').isFloat({ min: 5, max: 50000 }).withMessage('Reward must be between 5 and 50000'),
+  body('isInsured').optional().isBoolean(),
+  body('insurancePlan').optional().isIn(['BASIC', 'PREMIUM', 'ENTERPRISE']),
+  body('dimensions').optional().trim(),
 ], async (req: AuthRequest, res: Response): Promise<void> => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -63,6 +70,7 @@ router.post('/', authenticate, upload.array('images', 5), [
     pickupAddress, pickupCity, pickupCountry, pickupLat, pickupLng,
     destinationAddress, destinationCity, destinationCountry, destinationLat, destinationLng,
     weight, size, category, urgency, rewardAmount, estimatedValue,
+    isInsured = false, insurancePlan, dimensions,
   } = req.body;
 
   try {
@@ -70,7 +78,7 @@ router.post('/', authenticate, upload.array('images', 5), [
     const imageUrls = files ? files.map(f => `/uploads/packages/${f.filename}`) : [];
 
     // Calculate distance
-    let distanceKm = 500; // fallback
+    let distanceKm = 500;
     if (pickupLat && pickupLng && destinationLat && destinationLng) {
       const R = 6371;
       const dLat = ((parseFloat(destinationLat) - parseFloat(pickupLat)) * Math.PI) / 180;
@@ -83,7 +91,6 @@ router.post('/', authenticate, upload.array('images', 5), [
       distanceKm = estimateDistanceFromCities(pickupCity, destinationCity);
     }
 
-    // Calculate suggested pricing
     const pricing = calculatePricing({
       distanceKm,
       weightKg: parseFloat(weight),
@@ -92,12 +99,10 @@ router.post('/', authenticate, upload.array('images', 5), [
       estimatedValue: estimatedValue ? parseFloat(estimatedValue) : undefined,
     });
 
-    // Get sender info for risk calculation
     const sender = await prisma.user.findUnique({ where: { id: req.user!.id } });
     const reportsCount = await prisma.report.count({ where: { reportedUserId: req.user!.id } });
     const totalUserPackages = await prisma.package.count({ where: { userId: req.user!.id } });
 
-    // Calculate risk
     const riskResult = calculatePackageRisk({
       estimatedValue: estimatedValue ? parseFloat(estimatedValue) : undefined,
       weight: parseFloat(weight),
@@ -118,8 +123,13 @@ router.post('/', authenticate, upload.array('images', 5), [
       },
     });
 
+    const pkgId = uuidv4();
+    const qrCodeData = `cc-package-qr:${pkgId}`;
+    const parsedIsInsured = String(isInsured) === 'true';
+
     const pkg = await prisma.package.create({
       data: {
+        id: pkgId,
         userId: req.user!.id,
         title, description,
         pickupAddress, pickupCity, pickupCountry,
@@ -138,9 +148,46 @@ router.post('/', authenticate, upload.array('images', 5), [
         estimatedValue: estimatedValue ? parseFloat(estimatedValue) : null,
         riskScore: riskResult.riskScore,
         riskLevel: riskResult.riskLevel as any,
+        dimensions,
+        qrCodeData,
+        isInsured: parsedIsInsured,
+        insurancePlan: parsedIsInsured ? insurancePlan : null,
       },
       include: { user: { select: { firstName: true, lastName: true, avatar: true } } },
     });
+
+    // Create Initial Package History entry
+    await prisma.packageHistory.create({
+      data: {
+        packageId: pkg.id,
+        status: 'CREATED',
+        description: 'Package posted and verified by sender.',
+        scanType: 'VERIFICATION',
+        operatorId: req.user!.id,
+      }
+    });
+
+    // Handle Insurance Policy Creation
+    if (parsedIsInsured && estimatedValue && insurancePlan) {
+      const val = parseFloat(estimatedValue);
+      let rate = 0.01;
+      if (insurancePlan === 'PREMIUM') rate = 0.02;
+      else if (insurancePlan === 'ENTERPRISE') rate = 0.035;
+
+      if (riskResult.riskLevel === 'MEDIUM') rate *= 1.2;
+      else if (riskResult.riskLevel === 'HIGH') rate *= 1.5;
+
+      const premiumPaid = Math.round(val * rate * 100) / 100;
+      await prisma.insurancePolicy.create({
+        data: {
+          packageId: pkg.id,
+          plan: insurancePlan,
+          premiumPaid,
+          coverageAmount: val,
+          status: 'ACTIVE',
+        }
+      });
+    }
 
     // Create notification
     await prisma.notification.create({
@@ -157,7 +204,7 @@ router.post('/', authenticate, upload.array('images', 5), [
       data: { ...pkg, pricing, risk: riskResult },
     });
   } catch (error) {
-    console.error(error);
+    logger.error('Failed to create package:', error);
     res.status(500).json({ success: false, message: 'Failed to create package' });
   }
 });
@@ -222,19 +269,33 @@ router.get('/:id', [
     res.status(400).json({ success: false, errors: errors.array() });
     return;
   }
+
+  const pkgId = req.params.id;
+  const cacheKey = `package:details:${pkgId}`;
+
   try {
+    // Attempt cache hit
+    const cachedData = await cacheGet(cacheKey);
+    if (cachedData) {
+      res.json({ success: true, data: JSON.parse(cachedData), fromCache: true });
+      return;
+    }
+
     const pkg = await prisma.package.findUnique({
-      where: { id: req.params.id },
+      where: { id: pkgId },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, avatar: true, rating: true, trustScore: true } },
+        user: { select: { id: true, firstName: true, lastName: true, avatar: true, rating: true, trustScore: true, verificationLevel: true } },
         transactions: {
-          select: {
-            id: true,
-            type: true,
-            status: true,
-            amount: true,
-            createdAt: true,
-          }
+          select: { id: true, type: true, status: true, amount: true, createdAt: true }
+        },
+        packageHistories: {
+          orderBy: { createdAt: 'asc' }
+        },
+        disputes: {
+          orderBy: { createdAt: 'desc' }
+        },
+        insurancePolicy: {
+          include: { claims: true }
         },
         matches: {
           where: { isRejected: false },
@@ -247,11 +308,188 @@ router.get('/:id', [
       },
     });
 
-    if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
+    if (!pkg) {
+      res.status(404).json({ success: false, message: 'Package not found' });
+      return;
+    }
+
+    // Cache key for 5 minutes
+    await cacheSet(cacheKey, JSON.stringify(pkg), 300);
 
     res.json({ success: true, data: pkg });
   } catch (error) {
+    logger.error('Failed to fetch package:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch package' });
+  }
+});
+
+// GET /api/packages/:id/qr
+router.get('/:id/qr', [
+  param('id').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format')
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const pkg = await prisma.package.findUnique({
+      where: { id: req.params.id },
+      select: { qrCodeData: true }
+    });
+    if (!pkg) {
+      res.status(404).json({ success: false, message: 'Package not found' });
+      return;
+    }
+    res.json({ success: true, data: { qrCodeData: pkg.qrCodeData } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch QR code' });
+  }
+});
+
+// POST /api/packages/:id/scan
+router.post('/:id/scan', authenticate, [
+  param('id').matches(/^[a-zA-Z0-9-]+$/).withMessage('Invalid package ID format'),
+  body('scanType').isIn(['PICKUP', 'TRANSIT', 'DELIVERY']),
+  body('latitude').optional().isFloat(),
+  body('longitude').optional().isFloat(),
+  body('qrPayload').trim().notEmpty().withMessage('QR Payload is required'),
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return;
+  }
+
+  const { scanType, latitude, longitude, qrPayload } = req.body;
+  const pkgId = req.params.id;
+
+  try {
+    const pkg = await prisma.package.findUnique({
+      where: { id: pkgId },
+      include: {
+        matches: { where: { isAccepted: true } }
+      }
+    });
+
+    if (!pkg) {
+      res.status(404).json({ success: false, message: 'Package not found' });
+      return;
+    }
+
+    // Verify QR code payload matching
+    if (pkg.qrCodeData !== qrPayload) {
+      res.status(400).json({ success: false, message: 'Invalid QR payload. QR Code verification failed.' });
+      return;
+    }
+
+    const acceptedMatch = pkg.matches[0];
+    if (!acceptedMatch) {
+      res.status(400).json({ success: false, message: 'Package is not matched with any carrier yet.' });
+      return;
+    }
+
+    // Authorization checks
+    if (acceptedMatch.travelerId !== req.user!.id && req.user!.role !== 'ADMIN') {
+      res.status(403).json({ success: false, message: 'Not authorized to perform scans on this package.' });
+      return;
+    }
+
+    const lat = latitude ? parseFloat(latitude) : null;
+    const lng = longitude ? parseFloat(longitude) : null;
+    let nextStatus = pkg.status;
+    let description = '';
+
+    if (scanType === 'PICKUP') {
+      if (pkg.status !== 'MATCHED' && pkg.status !== 'ACCEPTED') {
+        res.status(400).json({ success: false, message: 'Package status must be MATCHED or ACCEPTED to be picked up.' });
+        return;
+      }
+      nextStatus = 'PICKED_UP';
+      description = 'Package successfully picked up by carrier.';
+    } else if (scanType === 'TRANSIT') {
+      if (pkg.status !== 'PICKED_UP' && pkg.status !== 'IN_TRANSIT') {
+        res.status(400).json({ success: false, message: 'Package must be PICKED_UP to transition to transit.' });
+        return;
+      }
+      nextStatus = 'IN_TRANSIT';
+      description = 'Package in transit with carrier.';
+    } else if (scanType === 'DELIVERY') {
+      if (pkg.status !== 'IN_TRANSIT' && pkg.status !== 'PICKED_UP') {
+        res.status(400).json({ success: false, message: 'Package must be picked up and in transit before delivery.' });
+        return;
+      }
+      nextStatus = 'DELIVERED';
+      description = 'Package delivered successfully and verified via QR scan.';
+    }
+
+    // Update package status
+    const updatedPkg = await prisma.package.update({
+      where: { id: pkgId },
+      data: {
+        status: nextStatus,
+        ...(scanType === 'PICKUP' && { pickedUpAt: new Date() }),
+        ...(scanType === 'DELIVERY' && { deliveredAt: new Date() }),
+      }
+    });
+
+    // Log tracking scan
+    await prisma.packageHistory.create({
+      data: {
+        packageId: pkgId,
+        status: nextStatus,
+        description,
+        latitude: lat,
+        longitude: lng,
+        scanType,
+        operatorId: req.user!.id,
+      }
+    });
+
+    // If delivered, execute stats increments and trust score updates
+    if (scanType === 'DELIVERY') {
+      const traveler = await prisma.user.findUnique({ where: { id: acceptedMatch.travelerId } });
+      if (traveler) {
+        await prisma.user.update({
+          where: { id: traveler.id },
+          data: {
+            completedDeliveries: { increment: 1 },
+          }
+        });
+
+        // Recalculate trust score for traveler
+        await recalculateAndSaveTrustScore(traveler.id);
+
+        // Recalculate trust score for sender
+        await recalculateAndSaveTrustScore(pkg.userId);
+      }
+
+      // Create notifications
+      await prisma.notification.create({
+        data: {
+          userId: pkg.userId,
+          type: 'PACKAGE_DELIVERED',
+          title: 'Package Delivered! 📦',
+          message: `Your package "${pkg.title}" has been successfully delivered.`,
+        }
+      });
+
+      await prisma.notification.create({
+        data: {
+          userId: acceptedMatch.travelerId,
+          type: 'PACKAGE_DELIVERED',
+          title: 'Delivery Confirmed! 🎉',
+          message: `Package "${pkg.title}" delivery verified. Reward details updated.`,
+        }
+      });
+    }
+
+    // Invalidate Redis caches
+    await cacheDel(`package:details:${pkgId}`);
+
+    res.json({
+      success: true,
+      message: `Package scan successful: ${scanType}`,
+      data: updatedPkg,
+    });
+  } catch (error) {
+    logger.error('Failed to process package scan:', error);
+    res.status(500).json({ success: false, message: 'Failed to process package scan' });
   }
 });
 
@@ -264,24 +502,24 @@ router.put('/:id', authenticate, [
     res.status(400).json({ success: false, errors: errors.array() });
     return;
   }
+  const pkgId = req.params.id;
+
   try {
-    const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
+    const pkg = await prisma.package.findUnique({ where: { id: pkgId } });
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
     if (pkg.userId !== req.user!.id && req.user!.role !== 'ADMIN') {
       res.status(403).json({ success: false, message: 'Not authorized' }); return;
     }
 
-    const allowedUpdates = ['title', 'description', 'rewardAmount', 'status', 'urgency', 'notes'];
+    const allowedUpdates = ['title', 'description', 'rewardAmount', 'status', 'urgency', 'notes', 'dimensions'];
     const updates: any = {};
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     });
 
-    // Handle status transitions
     if (req.body.status === 'DELIVERED') {
       updates.deliveredAt = new Date();
       
-      // Calculate sustainability impact
       const trip = await prisma.match.findFirst({
         where: { packageId: pkg.id, isAccepted: true },
         include: { trip: true },
@@ -299,7 +537,6 @@ router.put('/:id', authenticate, [
         updates.distanceSaved = sustainability.distanceKm;
       }
 
-      // Update traveler stats
       const acceptedMatch = await prisma.match.findFirst({
         where: { packageId: pkg.id, isAccepted: true },
       });
@@ -307,7 +544,6 @@ router.put('/:id', authenticate, [
         const traveler = await prisma.user.findUnique({ where: { id: acceptedMatch.travelerId } });
         if (traveler) {
           const newCompleted = traveler.completedDeliveries + 1;
-          const newTotal = newCompleted + (traveler.totalTrips - traveler.completedDeliveries);
           await prisma.user.update({
             where: { id: traveler.id },
             data: {
@@ -315,8 +551,8 @@ router.put('/:id', authenticate, [
               successRate: newCompleted / Math.max(traveler.totalTrips, newCompleted),
             },
           });
+          await recalculateAndSaveTrustScore(traveler.id);
         }
-        // Notify traveler
         await prisma.notification.create({
           data: {
             userId: acceptedMatch.travelerId,
@@ -327,7 +563,6 @@ router.put('/:id', authenticate, [
         });
       }
 
-      // Notify sender
       await prisma.notification.create({
         data: {
           userId: pkg.userId,
@@ -342,7 +577,11 @@ router.put('/:id', authenticate, [
       updates.pickedUpAt = new Date();
     }
 
-    const updated = await prisma.package.update({ where: { id: req.params.id }, data: updates });
+    const updated = await prisma.package.update({ where: { id: pkgId }, data: updates });
+
+    // Invalidate caches
+    await cacheDel(`package:details:${pkgId}`);
+
     res.json({ success: true, message: 'Package updated', data: updated });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to update package' });
@@ -358,14 +597,20 @@ router.delete('/:id', authenticate, [
     res.status(400).json({ success: false, errors: errors.array() });
     return;
   }
+  const pkgId = req.params.id;
+
   try {
-    const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
+    const pkg = await prisma.package.findUnique({ where: { id: pkgId } });
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
     if (pkg.userId !== req.user!.id && req.user!.role !== 'ADMIN') {
       res.status(403).json({ success: false, message: 'Not authorized' }); return;
     }
 
-    await prisma.package.update({ where: { id: req.params.id }, data: { status: 'CANCELLED' } });
+    await prisma.package.update({ where: { id: pkgId }, data: { status: 'CANCELLED' } });
+
+    // Invalidate caches
+    await cacheDel(`package:details:${pkgId}`);
+
     res.json({ success: true, message: 'Package cancelled' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to cancel package' });
@@ -410,29 +655,28 @@ router.post('/:id/deliver', authenticate, [
     res.status(400).json({ success: false, errors: errors.array() });
     return;
   }
+  const pkgId = req.params.id;
+
   try {
     const { pin } = req.body;
 
     const pkg = await prisma.package.findUnique({
-      where: { id: req.params.id },
+      where: { id: pkgId },
       include: {
-        matches: {
-          where: { isAccepted: true }
-        }
+        matches: { where: { isAccepted: true } }
       }
     });
 
     if (!pkg) { res.status(404).json({ success: false, message: 'Package not found' }); return; }
     
-    // Check if the current user is the accepted carrier for this package
     const acceptedMatch = pkg.matches[0];
     if (!acceptedMatch || acceptedMatch.travelerId !== req.user!.id) {
       res.status(403).json({ success: false, message: 'Not authorized to deliver this package' });
       return;
     }
 
-    if (pkg.status !== 'ACCEPTED') {
-      res.status(400).json({ success: false, message: 'Package is not in transit' });
+    if (pkg.status !== 'ACCEPTED' && pkg.status !== 'IN_TRANSIT' && pkg.status !== 'PICKED_UP') {
+      res.status(400).json({ success: false, message: 'Package is not in a valid transit state for delivery' });
       return;
     }
 
@@ -441,12 +685,21 @@ router.post('/:id/deliver', authenticate, [
       return;
     }
 
-    // PIN is correct, mark as delivered
     await prisma.package.update({
-      where: { id: pkg.id },
+      where: { id: pkgId },
       data: {
         status: 'DELIVERED',
         deliveredAt: new Date()
+      }
+    });
+
+    await prisma.packageHistory.create({
+      data: {
+        packageId: pkgId,
+        status: 'DELIVERED',
+        description: 'Package delivered and verified via Receiver PIN.',
+        scanType: 'DELIVERY',
+        operatorId: req.user!.id,
       }
     });
 
@@ -461,13 +714,17 @@ router.post('/:id/deliver', authenticate, [
       },
     });
 
-    // Update carrier stats
+    // Update carrier stats & recalculate trust
     await prisma.user.update({
       where: { id: req.user!.id },
-      data: {
-        completedDeliveries: { increment: 1 }
-      }
+      data: { completedDeliveries: { increment: 1 } }
     });
+
+    await recalculateAndSaveTrustScore(req.user!.id);
+    await recalculateAndSaveTrustScore(pkg.userId);
+
+    // Invalidate cache
+    await cacheDel(`package:details:${pkgId}`);
 
     res.json({ success: true, message: 'Package delivered successfully!' });
   } catch (error) {

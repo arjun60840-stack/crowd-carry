@@ -1,122 +1,297 @@
 'use client';
 
-import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { Upload, ShieldCheck, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { 
+  Shield, CheckCircle, AlertCircle, Upload, Phone, FileText, 
+  User, ArrowLeft, Loader2 
+} from 'lucide-react';
 import api from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
-export default function KYCPage() {
+export default function DashboardKycPage() {
   const { user, refreshUser } = useAuth();
-  const [file, setFile] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
+  
+  const [kycData, setKycData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+  // Phone Verification states
+  const [phoneInput, setPhoneInput] = useState('');
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+
+  // ID & Selfie Upload states
+  const [aadhaarInput, setAadhaarInput] = useState('');
+  const [panInput, setPanInput] = useState('');
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+
+  const fetchKycStatus = async () => {
+    try {
+      const res = await api.getKycStatus();
+      setKycData(res.data);
+    } catch (err) {
+      console.error('Failed to retrieve KYC status', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) return;
+  useEffect(() => {
+    fetchKycStatus();
+  }, []);
 
-    setIsSubmitting(true);
-    setError('');
+  const handlePhoneVerify = async () => {
+    setIsVerifyingPhone(true);
+    try {
+      await api.verifyPhone();
+      alert('Phone verified successfully!');
+      await refreshUser();
+      fetchKycStatus();
+    } catch (err: any) {
+      alert(err.message || 'Phone verification failed');
+    } finally {
+      setIsVerifyingPhone(false);
+    }
+  };
+
+  const handleKycSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingKyc(true);
+    setStatusMessage('');
+
+    if (aadhaarInput.length !== 12) {
+      setStatusMessage('Aadhaar number must be exactly 12 digits');
+      setIsSubmittingKyc(false);
+      return;
+    }
+
+    if (panInput.length !== 10) {
+      setStatusMessage('PAN number must be exactly 10 characters');
+      setIsSubmittingKyc(false);
+      return;
+    }
 
     try {
-      // In a real app, upload the file to S3/Cloudinary first
-      const fakeUrl = `https://s3.amazonaws.com/kyc/${file.name}`;
-      
-      await api.submitKyc(fakeUrl);
+      await api.submitUserKyc(aadhaarInput, panInput, selfieFile);
+      setStatusMessage('🎉 KYC documents submitted successfully! Pending admin approval.');
       await refreshUser();
-      setSuccess(true);
+      fetchKycStatus();
     } catch (err: any) {
-      setError(err.message || 'Verification failed');
+      setStatusMessage(`❌ Error: ${err.message || 'Submission failed'}`);
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingKyc(false);
     }
   };
 
-  if (user?.isVerified) {
+  if (isLoading) {
     return (
-      <div className="max-w-2xl mx-auto py-12 px-4">
-        <div className="glass-card p-8 text-center border-emerald-500/30 relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-emerald-400" />
-          </div>
-          <h1 className="text-3xl font-black font-syne text-white mb-2">Identity Verified</h1>
-          <p className="text-emerald-200/70 mb-6">
-            Your identity has been verified. You now have the prestigious blue checkmark and full access to Crowd Carry.
-          </p>
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
       </div>
     );
   }
 
+  const currentLevel = kycData?.verificationLevel ?? 0;
+  const levels = [
+    { num: 0, label: 'Email Verified', desc: 'Verify email registration link' },
+    { num: 1, label: 'Phone Verified', desc: 'Simulate mobile phone OTP checks' },
+    { num: 2, label: 'Government ID', desc: 'Input Aadhaar and PAN details' },
+    { num: 3, label: 'Selfie Verified', desc: 'Submit camera portrait matching ID' },
+    { num: 4, label: 'Trusted Carrier', desc: 'Elite status for vetted travelers' }
+  ];
+
   return (
-    <div className="max-w-2xl mx-auto py-12 px-4">
-      <div className="glass-card p-8 border-indigo-500/30">
-        <div className="flex items-center gap-3 mb-6">
-          <ShieldCheck className="w-8 h-8 text-indigo-400" />
-          <h1 className="text-2xl font-bold font-syne text-white">Verify Your Identity</h1>
+    <div className="max-w-4xl mx-auto space-y-8 text-white">
+      
+      {/* Title */}
+      <div>
+        <h1 className="text-2xl font-black font-syne flex items-center gap-2">
+          <Shield className="w-6 h-6 text-indigo-400" />
+          Trust & Safety Verification
+        </h1>
+        <p className="text-sm text-gray-400">Upgrade your credentials to increase package matches and trust reputation.</p>
+      </div>
+
+      {/* KYC Levels Progress Tracker */}
+      <div className="glass-card p-6 border-white/5 space-y-6">
+        <h2 className="text-lg font-bold font-syne border-b border-white/5 pb-3">Your Trust Profile Level</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+          {levels.map((lvl) => {
+            const active = lvl.num <= currentLevel;
+            return (
+              <div key={lvl.num} className={`p-4 rounded-xl border transition-all ${
+                active 
+                  ? 'bg-indigo-500/10 border-indigo-500/30' 
+                  : 'bg-white/5 border-white/5 opacity-50'
+              }`}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    active ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-400'
+                  }`}>
+                    Level {lvl.num}
+                  </span>
+                  {active && <CheckCircle2 className="w-4 h-4 text-indigo-400" />}
+                </div>
+                <h4 className="font-bold text-sm">{lvl.label}</h4>
+                <p className="text-[10px] text-gray-400 mt-1">{lvl.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Verification Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        {/* Left panel: Level 1 verification (Phone) */}
+        <div className="glass-card p-6 border-white/5 space-y-6">
+          <h3 className="text-md font-bold font-syne flex items-center gap-2">
+            <Phone className="w-5 h-5 text-indigo-400" />
+            Level 1: Verify Mobile Number
+          </h3>
+          
+          {kycData?.verificationLevel >= 1 ? (
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <div className="text-sm font-bold text-emerald-400">Verified</div>
+                <div className="text-xs text-gray-400">Mobile verification successfully matches.</div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-400">
+                Input your phone number to receive confirmation code.
+              </p>
+              <div className="space-y-3">
+                <input
+                  type="tel"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  placeholder="+91 XXXXX XXXXX"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none"
+                />
+                <button
+                  onClick={handlePhoneVerify}
+                  disabled={isVerifyingPhone || !phoneInput}
+                  className="btn-primary w-full justify-center"
+                >
+                  {isVerifyingPhone ? 'Verifying...' : 'Verify Phone'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        <p className="text-gray-400 mb-8 leading-relaxed">
-          To build a safe and trusted community, we require all users to verify their identity before they can carry packages or send high-value items. Upload a government-issued ID (Passport, Driver's License, or National ID) to get your Verified Badge.
-        </p>
+        {/* Right panel: Levels 2 & 3 Upload (Gov ID & Selfie) */}
+        <div className="glass-card p-6 border-white/5 space-y-6">
+          <h3 className="text-md font-bold font-syne flex items-center gap-2">
+            <FileText className="w-5 h-5 text-indigo-400" />
+            Levels 2 & 3: Government ID & Selfie
+          </h3>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-200">{error}</p>
-          </div>
-        )}
-
-        {success ? (
-          <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
-            <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-emerald-400 mb-2">Documents Submitted</h3>
-            <p className="text-sm text-emerald-200/70">
-              Your documents have been automatically approved for this demo!
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="border-2 border-dashed border-indigo-500/30 rounded-2xl p-8 text-center hover:bg-indigo-500/5 transition-colors group cursor-pointer relative">
-              <input 
-                type="file" 
-                accept="image/*,.pdf"
-                onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                required
-              />
-              <Upload className="w-10 h-10 text-indigo-400 mx-auto mb-4 group-hover:scale-110 transition-transform" />
-              <h3 className="text-white font-semibold mb-1">
-                {file ? file.name : 'Upload ID Document'}
-              </h3>
-              <p className="text-sm text-gray-500">
-                {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : 'Drag and drop or click to browse'}
-              </p>
+          {kycData?.kycStatus === 'APPROVED' ? (
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <div className="text-sm font-bold text-emerald-400">KYC Status: APPROVED</div>
+                <div className="text-xs text-gray-400">Your documents are fully approved by admin review.</div>
+              </div>
             </div>
+          ) : kycData?.kycStatus === 'PENDING' ? (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-amber-400 shrink-0 animate-spin" />
+              <div>
+                <div className="text-sm font-bold text-amber-400">KYC Status: PENDING</div>
+                <div className="text-xs text-gray-400">Admins are currently reviewing your documents.</div>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleKycSubmit} className="space-y-4">
+              <p className="text-xs text-gray-400">
+                Submit Aadhaar, PAN, and selfie verification coordinates.
+              </p>
 
-            <button 
-              type="submit" 
-              disabled={!file || isSubmitting}
-              className="btn-primary w-full justify-center py-4 text-lg"
-            >
-              {isSubmitting ? (
-                <><Loader2 className="w-6 h-6 animate-spin mr-2" /> Processing...</>
-              ) : (
-                'Submit for Verification'
-              )}
-            </button>
-          </form>
-        )}
+              <div className="space-y-2">
+                <label className="text-xs block">Aadhaar Card Number (12 Digits)</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={12}
+                  placeholder="1234 5678 9012"
+                  value={aadhaarInput}
+                  onChange={(e) => setAadhaarInput(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs block">PAN Card Number (10 Characters)</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={10}
+                  placeholder="ABCDE1234F"
+                  value={panInput}
+                  onChange={(e) => setPanInput(e.target.value.toUpperCase())}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs block">Upload Selfie Image</label>
+                <div className="border border-dashed border-white/10 rounded-xl p-4 text-center cursor-pointer hover:bg-white/5 transition-all relative">
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => setSelfieFile(e.target.files?.[0] || null)}
+                    className="hidden" 
+                    id="selfie-file"
+                  />
+                  <label htmlFor="selfie-file" className="cursor-pointer space-y-1 block">
+                    <Upload className="w-6 h-6 text-gray-400 mx-auto" />
+                    <div className="text-xs text-gray-400">
+                      {selfieFile ? selfieFile.name : 'Select portrait picture'}
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {statusMessage && <div className="text-xs text-indigo-400 p-2 bg-indigo-500/10 rounded-xl">{statusMessage}</div>}
+
+              <button
+                type="submit"
+                disabled={isSubmittingKyc || !aadhaarInput || !panInput || !selfieFile}
+                className="btn-primary w-full justify-center"
+              >
+                {isSubmittingKyc ? 'Submitting...' : 'Submit Documents'}
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+// Custom checkcircle2 svg representation since lucide icons might differ
+function CheckCircle2(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
   );
 }

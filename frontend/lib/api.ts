@@ -257,11 +257,97 @@ class ApiClient {
     return this.request(`/api/chat/${matchId}`);
   }
 
-  // KYC
-  async submitKyc(documentUrl: string) {
-    return this.request('/api/users/kyc', {
+  // KYC Upgraded
+  async submitUserKyc(aadhaarNumber: string, panNumber: string, selfieFile: File | null) {
+    const formData = new FormData();
+    formData.append('aadhaarNumber', aadhaarNumber);
+    formData.append('panNumber', panNumber);
+    if (selfieFile) {
+      formData.append('selfie', selfieFile);
+    }
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch(`${this.baseUrl}/api/users/kyc/submit`, {
       method: 'POST',
-      body: JSON.stringify({ documentUrl })
+      headers,
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'KYC submission failed');
+    }
+    return data;
+  }
+
+  async getKycStatus() {
+    return this.request<{ success: boolean; data: any }>('/api/users/kyc/status');
+  }
+
+  async verifyAdminKyc(userId: string, action: 'APPROVE' | 'REJECT', level: number) {
+    return this.request(`/api/admin/kyc/${userId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ action, level }),
+    });
+  }
+
+  // Disputes
+  async submitDispute(data: { packageId: string; type: string; description: string; evidenceUrls?: string[] }) {
+    return this.request('/api/disputes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getDisputes() {
+    return this.request<{ success: boolean; data: any[] }>('/api/disputes');
+  }
+
+  async getAdminDisputes() {
+    return this.request<{ success: boolean; data: any[] }>('/api/admin/disputes');
+  }
+
+  async resolveDispute(disputeId: string, data: { resolution: string; resolutionNotes?: string; adminNotes?: string }) {
+    return this.request(`/api/admin/disputes/${disputeId}/resolve`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Insurance
+  async submitInsuranceClaim(data: { packageId: string; amountClaimed: number; description: string; evidenceUrls?: string[] }) {
+    return this.request('/api/insurance/claim', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getInsuranceClaims() {
+    return this.request<{ success: boolean; data: any[] }>('/api/insurance/claims');
+  }
+
+  async getAdminInsuranceClaims() {
+    return this.request<{ success: boolean; data: any[] }>('/api/insurance/admin/claims');
+  }
+
+  async resolveInsuranceClaim(claimId: string, data: { status: 'APPROVED' | 'REJECTED'; settlementAmount?: number; adminNotes?: string }) {
+    return this.request(`/api/insurance/admin/claims/${claimId}/resolve`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Scanning & QR Code
+  async getPackageQr(packageId: string) {
+    return this.request<{ success: boolean; data: { qrCodeData: string } }>(`/api/packages/${packageId}/qr`);
+  }
+
+  async scanPackage(packageId: string, data: { scanType: 'PICKUP' | 'TRANSIT' | 'DELIVERY'; qrPayload: string; latitude?: number; longitude?: number }) {
+    return this.request(`/api/packages/${packageId}/scan`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
 

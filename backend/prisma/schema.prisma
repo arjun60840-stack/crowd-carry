@@ -28,8 +28,17 @@ model User {
   city              String?
   country           String?
   
+  // KYC Level System
+  kycStatus           String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  verificationLevel   Int       @default(0) // 0: email, 1: phone, 2: ID, 3: selfie, 4: trusted carrier
+  aadhaarNumber       String?
+  panNumber           String?
+  selfieImage         String?
+  verificationDate    DateTime?
+  verifiedBadge       Boolean   @default(false)
+  
   // Trust & Reputation
-  trustScore        Float     @default(0)
+  trustScore        Float     @default(100)
   rating            Float     @default(0)
   totalRatings      Int       @default(0)
   completedDeliveries Int     @default(0)
@@ -68,6 +77,9 @@ model User {
   reportsAgainst    Report[]  @relation("ReportsAgainst")
   transactions      Transaction[]
   messagesSent      Message[] @relation("SentMessages")
+  disputesFiled     Dispute[] @relation("DisputesFiled")
+  disputesAgainst   Dispute[] @relation("DisputesAgainst")
+  insuranceClaims   InsuranceClaim[] @relation("UserClaims")
   
   @@index([role])
   @@index([createdAt])
@@ -149,9 +161,15 @@ model Package {
   paymentStatus     String          @default("PENDING")
   imageUrls         String          @default("[]") // JSON stringified array
   
+  // Package Verification & Safety
+  packagePhoto      String?
+  dimensions        String?         // e.g. "30x20x10 cm"
+  qrCodeData        String?         // Unique QR code payload
+  
   // Insurance
   estimatedValue    Float?
   isInsured         Boolean         @default(false)
+  insurancePlan     String?         // BASIC, PREMIUM, ENTERPRISE
   
   // Delivery details
   deliveryPin       String?
@@ -174,6 +192,9 @@ model Package {
   matches           Match[]
   reviews           Review[]
   transactions      Transaction[]
+  packageHistories  PackageHistory[]
+  disputes          Dispute[]
+  insurancePolicy   InsurancePolicy?
   
   @@index([userId])
   @@index([status])
@@ -304,4 +325,73 @@ model Message {
   createdAt         DateTime  @default(now())
   
   @@map("messages")
+}
+
+model PackageHistory {
+  id           String   @id @default(uuid())
+  packageId    String
+  package      Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  status       String
+  description  String
+  latitude     Float?
+  longitude    Float?
+  scanType     String?  // PICKUP, TRANSIT, DELIVERY, VERIFICATION
+  operatorId   String?
+  createdAt    DateTime @default(now())
+
+  @@map("package_histories")
+}
+
+model Dispute {
+  id             String   @id @default(uuid())
+  packageId      String
+  package        Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  reporterId     String
+  reporter       User     @relation("DisputesFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String?
+  reportedUser   User?    @relation("DisputesAgainst", fields: [reportedUserId], references: [id])
+  type           String   // LOST_PACKAGE, DAMAGED_PACKAGE, WRONG_DELIVERY, PAYMENT_ISSUE, CARRIER_MISCONDUCT
+  description    String
+  evidenceUrls   String   @default("[]") // JSON array of urls
+  status         String   @default("PENDING") // PENDING, INVESTIGATING, RESOLVED, REJECTED
+  resolution     String?  // REFUND, COMPENSATION, WARNING, ACCOUNT_SUSPENSION
+  resolutionNotes String?
+  adminNotes     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("disputes")
+}
+
+model InsurancePolicy {
+  id             String   @id @default(uuid())
+  packageId      String   @unique
+  package        Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  plan           String   // BASIC, PREMIUM, ENTERPRISE
+  premiumPaid    Float
+  coverageAmount Float
+  status         String   @default("ACTIVE") // ACTIVE, CLAIMED, EXPIRED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  claims         InsuranceClaim[]
+  @@map("insurance_policies")
+}
+
+model InsuranceClaim {
+  id             String   @id @default(uuid())
+  policyId       String
+  policy         InsurancePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  claimantId     String
+  claimant       User     @relation("UserClaims", fields: [claimantId], references: [id], onDelete: Cascade)
+  amountClaimed  Float
+  description    String
+  evidenceUrls   String   @default("[]") // JSON array of urls
+  status         String   @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
+  settlementAmount Float?
+  adminNotes     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("insurance_claims")
 }
