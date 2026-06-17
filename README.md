@@ -62,7 +62,7 @@ graph TD
     end
 
     UI -->|HTTPS Requests| Routes
-    SocketClient <-->|WebSockets (JWT Authed)| SocketServer
+    SocketClient <-->|"WebSockets (JWT Authed)"| SocketServer
     Routes --> Prisma
     Prisma <--> DB
     Engines --> Prisma
