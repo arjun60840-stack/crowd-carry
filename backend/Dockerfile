@@ -1,5 +1,8 @@
 # Production Dockerfile for Crowd Carry Backend
-FROM node:20-alpine
+FROM node:20-slim
+
+# Install OpenSSL for Prisma client compatibility
+RUN apt-get update -y && apt-get install -y openssl
 
 WORKDIR /app
 
