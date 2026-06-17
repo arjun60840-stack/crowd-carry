@@ -1,39 +1,43 @@
 import Redis from 'ioredis';
 import { logger } from '../utils/logger';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+const REDIS_URL = process.env.REDIS_URL;
 let redis: Redis | null = null;
 let isRedisConnected = false;
 
 // Fallback in-memory cache
 const memoryCache = new Map<string, { value: string; expiry: number | null }>();
 
-try {
-  logger.info(`Initializing Redis client connecting to: ${REDIS_URL}`);
-  redis = new Redis(REDIS_URL, {
-    maxRetriesPerRequest: 1,
-    connectTimeout: 5000,
-    retryStrategy(times) {
-      // Limit retries so we don't spam logs or hang the server startup
-      if (times > 3) {
-        logger.warn('Redis connection failed too many times. Continuing with Memory Cache Fallback.');
-        return null; // Stop retrying
+if (REDIS_URL) {
+  try {
+    logger.info(`Initializing Redis client connecting to: ${REDIS_URL}`);
+    redis = new Redis(REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+      retryStrategy(times) {
+        // Limit retries so we don't spam logs or hang the server startup
+        if (times > 3) {
+          logger.warn('Redis connection failed too many times. Continuing with Memory Cache Fallback.');
+          return null; // Stop retrying
+        }
+        return Math.min(times * 100, 2000);
       }
-      return Math.min(times * 100, 2000);
-    }
-  });
+    });
 
-  redis.on('connect', () => {
-    isRedisConnected = true;
-    logger.info('✅ Redis connected successfully.');
-  });
+    redis.on('connect', () => {
+      isRedisConnected = true;
+      logger.info('✅ Redis connected successfully.');
+    });
 
-  redis.on('error', (err) => {
-    isRedisConnected = false;
-    logger.warn(`⚠️ Redis error: ${err.message}. Using In-Memory Cache Fallback.`);
-  });
-} catch (err: any) {
-  logger.error('Failed to create Redis instance:', err);
+    redis.on('error', (err) => {
+      isRedisConnected = false;
+      logger.warn(`⚠️ Redis error: ${err.message}. Using In-Memory Cache Fallback.`);
+    });
+  } catch (err: any) {
+    logger.error('Failed to create Redis instance:', err);
+  }
+} else {
+  logger.info('ℹ️ Redis URL not configured in environment. Using In-Memory Cache Fallback.');
 }
 
 /**
