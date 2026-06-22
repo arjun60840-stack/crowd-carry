@@ -80,10 +80,19 @@ export default function AdminKycPanel() {
     e.preventDefault();
     if (!resolvingClaimId) return;
 
+    let amount: number | undefined = undefined;
+    if (status === 'APPROVED') {
+      amount = parseFloat(settlementInput);
+      if (isNaN(amount) || amount < 0) {
+        alert('Please enter a valid approved settlement amount.');
+        return;
+      }
+    }
+
     try {
       await api.resolveInsuranceClaim(resolvingClaimId, {
         status,
-        settlementAmount: status === 'APPROVED' ? parseFloat(settlementInput) : undefined,
+        settlementAmount: amount,
         adminNotes: claimNotes,
       });
       alert(`Claim successfully ${status.toLowerCase()}`);
@@ -375,9 +384,15 @@ export default function AdminKycPanel() {
             <div className="space-y-2">
               <label className="text-xs block">Approved Settlement Amount (₹)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={settlementInput}
-                onChange={(e) => setSettlementInput(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                    setSettlementInput(val);
+                  }
+                }}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none"
               />
             </div>

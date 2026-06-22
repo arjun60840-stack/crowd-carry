@@ -139,9 +139,15 @@ export default function NewPackagePage() {
             <div>
               <label className="text-sm text-gray-400 mb-1.5 block">Weight (kg) *</label>
               <input
-                {...register('weight', { required: 'Weight required', min: { value: 0.01, message: 'Min 0.01kg' } })}
-                type="number"
-                step="0.1"
+                {...register('weight', { 
+                  required: 'Weight required', 
+                  validate: {
+                    isNumber: v => !isNaN(Number(v)) || 'Must be a valid number',
+                    min: v => Number(v) >= 0.01 || 'Min 0.01kg'
+                  }
+                })}
+                type="text"
+                inputMode="decimal"
                 placeholder="0.5"
                 className="input-field"
               />
@@ -150,12 +156,18 @@ export default function NewPackagePage() {
             <div>
               <label className="text-sm text-gray-400 mb-1.5 block">Estimated Value (₹)</label>
               <input
-                {...register('estimatedValue')}
-                type="number"
-                step="1"
+                {...register('estimatedValue', {
+                  validate: {
+                    isNumber: v => !v || !isNaN(Number(v)) || 'Must be a valid number',
+                    min: v => !v || Number(v) >= 0 || 'Must be positive'
+                  }
+                })}
+                type="text"
+                inputMode="numeric"
                 placeholder="100"
                 className="input-field"
               />
+              {errors.estimatedValue && <p className="text-red-400 text-xs mt-1">{errors.estimatedValue.message}</p>}
             </div>
           </div>
         </div>
@@ -224,9 +236,15 @@ export default function NewPackagePage() {
           <div>
             <label className="text-sm text-gray-400 mb-1.5 block">Your Reward Offer (₹) *</label>
             <input
-              {...register('rewardAmount', { required: 'Reward required', min: { value: 1, message: 'Min ₹1' } })}
-              type="number"
-              step="0.5"
+              {...register('rewardAmount', { 
+                required: 'Reward required',
+                validate: {
+                  isNumber: v => !isNaN(Number(v)) || 'Must be a valid number',
+                  min: v => Number(v) >= 1 || 'Min ₹1'
+                }
+              })}
+              type="text"
+              inputMode="decimal"
               placeholder="25"
               className="input-field"
             />

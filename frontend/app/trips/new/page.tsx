@@ -162,35 +162,54 @@ export default function NewTripPage() {
             <div>
               <label className="text-sm text-gray-400 mb-1.5 block">Max Weight (kg) *</label>
               <input
-                {...register('availableWeight', { required: true, min: { value: 0.1, message: 'Min 0.1kg' } })}
-                type="number"
-                step="0.5"
+                {...register('availableWeight', { 
+                  required: 'Weight required', 
+                  validate: {
+                    isNumber: v => !isNaN(Number(v)) || 'Must be a valid number',
+                    min: v => Number(v) >= 0.1 || 'Min 0.1kg'
+                  }
+                })}
+                type="text"
+                inputMode="decimal"
                 placeholder="10"
                 className="input-field"
               />
               {errors.availableWeight && <p className="text-red-400 text-xs mt-1">{errors.availableWeight.message}</p>}
             </div>
             <div>
-              <label className="text-sm text-gray-400 mb-1.5 block">Volume (liters)</label>
+              <label className="text-sm text-gray-400 mb-1.5 block">Volume (liters) *</label>
               <input
-                {...register('availableCapacity', { required: true })}
-                type="number"
-                step="1"
+                {...register('availableCapacity', { 
+                  required: 'Capacity required',
+                  validate: {
+                    isNumber: v => !isNaN(Number(v)) || 'Must be a valid number',
+                    min: v => Number(v) > 0 || 'Must be greater than 0'
+                  }
+                })}
+                type="text"
+                inputMode="numeric"
                 placeholder="20"
                 className="input-field"
               />
+              {errors.availableCapacity && <p className="text-red-400 text-xs mt-1">{errors.availableCapacity.message}</p>}
             </div>
           </div>
 
           <div>
             <label className="text-sm text-gray-400 mb-1.5 block">Price per kg (₹) - optional</label>
             <input
-              {...register('pricePerKg')}
-              type="number"
-              step="0.5"
+              {...register('pricePerKg', {
+                validate: {
+                  isNumber: v => !v || !isNaN(Number(v)) || 'Must be a valid number',
+                  min: v => !v || Number(v) >= 0 || 'Must be positive'
+                }
+              })}
+              type="text"
+              inputMode="decimal"
               placeholder="5.00"
               className="input-field"
             />
+            {errors.pricePerKg && <p className="text-red-400 text-xs mt-1">{errors.pricePerKg.message}</p>}
             <p className="text-xs text-gray-600 mt-1">Leave empty to let senders propose the reward</p>
           </div>
 

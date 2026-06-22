@@ -173,10 +173,22 @@ export default function PackageDetailPage() {
   const handleFileClaim = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsFilingClaim(true);
+    const amount = parseFloat(claimAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Please enter a valid claim amount.');
+      setIsFilingClaim(false);
+      return;
+    }
+    const maxLimit = pkg?.estimatedValue || 10000;
+    if (amount > maxLimit) {
+      alert(`Claim amount cannot exceed the coverage limit of ₹${maxLimit}.`);
+      setIsFilingClaim(false);
+      return;
+    }
     try {
       await api.submitInsuranceClaim({
         packageId: id,
-        amountClaimed: parseFloat(claimAmount),
+        amountClaimed: amount,
         description: claimDesc,
       });
       alert('Insurance claim filed successfully.');
@@ -623,11 +635,16 @@ export default function PackageDetailPage() {
             <div className="space-y-2">
               <label className="text-xs block">Settlement Amount Claimed (₹)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 required
                 value={claimAmount}
-                onChange={(e) => setClaimAmount(e.target.value)}
-                max={pkg.estimatedValue || 10000}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                    setClaimAmount(val);
+                  }
+                }}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm focus:outline-none"
               />
             </div>
