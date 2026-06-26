@@ -223,17 +223,19 @@ export default function DashboardKycPage() {
                   <div className="text-xs text-gray-400">Admins are currently reviewing your documents.</div>
                 </div>
               </div>
-              <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-2 text-left">
-                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Demo Mode Helper</h4>
-                <p className="text-[11px] text-gray-400">You can simulate admin review approval directly for testing.</p>
-                <button
-                  onClick={handleAutoApproveKyc}
-                  disabled={isAutoApproving}
-                  className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {isAutoApproving ? 'Approving...' : 'Auto-Approve Documents'}
-                </button>
-              </div>
+              {process.env.NODE_ENV !== 'production' && (
+                <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 space-y-2 text-left">
+                  <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Demo Mode Helper</h4>
+                  <p className="text-[11px] text-gray-400">You can simulate admin review approval directly for testing.</p>
+                  <button
+                    onClick={handleAutoApproveKyc}
+                    disabled={isAutoApproving}
+                    className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isAutoApproving ? 'Approving...' : 'Auto-Approve Documents'}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <form onSubmit={handleKycSubmit} className="space-y-4">
