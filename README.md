@@ -1,11 +1,11 @@
-# 🚀 Crowd Carry - AI-Powered Peer-to-Peer Shipping Network
+# 🚀 Crowd Carry - Peer-to-Peer Shipping Network
 
 [![Frontend Deployment](https://img.shields.io/badge/Frontend-Vercel-success?style=for-the-badge&logo=vercel)](https://crowd-carry-5iz3.vercel.app/)
 [![Backend API](https://img.shields.io/badge/Backend-Render-blue?style=for-the-badge&logo=render)](https://crowd-carry.onrender.com)
 [![Database](https://img.shields.io/badge/Database-Supabase-emerald?style=for-the-badge&logo=supabase)](https://supabase.com)
 [![Testing Suite](https://img.shields.io/badge/Tests-Jest%20Passed-brightgreen?style=for-the-badge&logo=jest)](https://github.com/arjun60840-stack/crowd-carry)
 
-**Crowd Carry** is a next-generation peer-to-peer crowdshipping platform that disrupts traditional logistics by turning everyday travelers into couriers. Senders get faster, cheaper, and more personal deliveries, while travelers monetize their unused vehicle/luggage space, offsetting travel costs and reducing carbon footprints.
+**Crowd Carry** is a peer-to-peer crowdshipping platform that disrupts traditional logistics by turning everyday travelers into couriers. Senders get faster, cheaper, and more personal deliveries, while travelers monetize their unused vehicle/luggage space, offsetting travel costs and reducing carbon footprints.
 
 ---
 
@@ -20,7 +20,8 @@
 
 ## 🔑 Ready-to-Use Demo Accounts
 
-The database contains pre-configured seeded accounts for testing the carrier-sender match and delivery workflows:
+The database contains pre-configured seeded accounts for testing the carrier-sender match and delivery workflows.
+*(Note: These are for demo purposes on the staging database.)*
 
 | Role | Email | Password |
 | :--- | :--- | :--- |
@@ -77,8 +78,8 @@ graph TD
 
 ## ✨ Features & Capabilities
 
-### 1. AI-Powered Dynamic Pricing Engine
-*   Automatically calculates fair shipping rewards using physical attributes (weight, volume, category), transit factors (distance, urgency, route complexity), and environmental parameters.
+### 1. Dynamic Pricing Engine
+*   Automatically calculates fair shipping rewards using physical attributes (weight, volume, category), transit factors (distance, urgency, route complexity), and environmental parameters through a deterministic rules engine.
 *   Enforces secure calculations on the backend to prevent sender rate spoofing.
 
 ### 2. Secure Escrow & Payments Flow
@@ -91,12 +92,12 @@ graph TD
 *   Senders can follow their items in real-time. Connects using JSON Web Tokens (JWT) verified during the socket handshake.
 
 ### 4. Interactive Coordination Chat
-*   Integrated, encrypted real-time direct messages allowing senders and carriers to coordinate meeting locations.
+*   Integrated real-time direct messages allowing senders and carriers to coordinate meeting locations over secure TLS connections (HTTPS/WSS).
 *   Sessions automatically disconnect matching the user's JWT expiration.
 
 ### 5. Verified Trust & Safety System
 *   **Multi-Level KYC Hub**: Tracks user verification level from 0 (Email) to 4 (Trusted Carrier status approved by Admin) with government ID uploads and selfies.
-*   **Auto-Approve (Demo Mode)**: To facilitate rapid testing during evaluation, users with a `PENDING` status can bypass Admin review by clicking the **Auto-Approve Documents** button inside the KYC page to instantly verify their credentials.
+*   **Auto-Approve (Demo Mode)**: To facilitate rapid testing during evaluation, users with a `PENDING` status can bypass Admin review by clicking the **Auto-Approve Documents** button inside the KYC page to instantly verify their credentials. *(Hidden in production environments).*
 *   **Dynamic Trust Scoring Engine**: Automatically computes reputations (0-100) using positive multipliers (deliveries, ratings, KYC tiers, account age) and negative penalties (active disputes, carrier fault incidents, policy violations).
 *   **QR Scanner Timeline**: Displays package transit milestones (Created -> Matched -> Picked Up -> In Transit -> Delivered) along with a simulated QR scanning drawer that pre-populates scan coordinates.
 *   **Disputes & Claims**: Built-in modals allowing users to file package disputes (holding escrow payouts) or submit insurance claims with evidence image uploads.
@@ -115,7 +116,7 @@ graph TD
 
 ## 🛡️ Production & Security Hardening
 
-To satisfy strict enterprise security audit requirements, we implemented the following hardening checklist:
+To ensure a secure foundation, we implemented the following hardening checklist:
 *   **SMTP Startup Verification Bypass**: nodemailers' startup connection check can be bypassed in demo builds using `BYPASS_SMTP_VERIFY=true` to prevent container crashes on Render.
 *   **Strict Parameter Sanitization**: Utilizes `express-validator` to reject malformed UUIDs, invalid coordinates, or invalid monetary rewards.
 *   **Token Expiration & Limits**: Implements database-tracked verification tokens (`emailVerifyExpiry`) expiring in 24 hours.
@@ -128,7 +129,7 @@ To satisfy strict enterprise security audit requirements, we implemented the fol
 
 ## 🛠️ Tech Stack
 
-*   **Frontend**: Next.js 16 (App Router), React, Tailwind CSS, Leaflet.js, Lucide React, Socket.io-client.
+*   **Frontend**: Next.js 14 (App Router), React, Tailwind CSS, Leaflet.js, Lucide React, Socket.io-client.
 *   **Backend**: Node.js, Express, Socket.io, Prisma ORM, Nodemailer, Stripe SDK, express-validator, express-rate-limit, ioredis.
 *   **Database**: PostgreSQL.
 *   **Testing**: Jest, ts-jest.
@@ -227,11 +228,11 @@ This mounts:
 
 ## 🧪 Running Automated Tests
 
-The backend includes a comprehensive Jest unit test suite covering pricing engines, auth, package transitions, and trust calculations:
+The backend includes a Jest unit test suite covering the pricing engine, auth, package transitions, and trust calculations:
 ```bash
 cd backend
 npm test
 ```
 
 ---
-*Developed for the AI-Powered Logistics Hackathon.*
+*Developed for the Logistics Hackathon.*
